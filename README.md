@@ -1,5 +1,4 @@
 # projekt-programowanie-Buglix
-projekt-programowanie-Buglix created by GitHub Classroom
 Aplikacja będzie o tematyce związanej z simracingiem, czyli dokładniej dotyczyć będzie gier 
 wyścigowych typu symulator. Aplikacja zostanie stworzona w programie Microsoft Visual 
 Studio w języku C++ na urządzenia typu desktop i będzie ona oparta na frameworku QT. 
