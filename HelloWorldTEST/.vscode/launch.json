@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Qt Project",
+      "type": "gdb", // Zmiana typu debugera na "gdb"
+      "request": "launch",
+      "program": "C:/Users/kbuga/OneDrive/Pulpit/EiT 3 SEMESTR/_repos/desktop-tutorial/HelloWorldTEST", // Poprawna ścieżka do pliku wykonywalnego
+      // ...
+    }
+  ]
+}
+
+  

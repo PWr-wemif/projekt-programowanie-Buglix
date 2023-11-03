@@ -1,0 +1,18 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "build-qt-project",
+        "type": "shell",
+        "command": "qmake", // Polecenie qmake
+        "args": [
+          "C:/Users/kbuga/OneDrive/Pulpit/EiT 3 SEMESTR/_repos/desktop-tutorial/HelloWorldTEST.pro" // Ścieżka do pliku projektu Qt
+        ],
+        "group": {
+          "kind": "build",
+          "isDefault": true
+        }
+      }
+    ]
+  }
+  
