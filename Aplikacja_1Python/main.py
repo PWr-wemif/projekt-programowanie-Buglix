@@ -1,96 +1,148 @@
-from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton
-
+from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QDialog, QLabel, QInputDialog, QMessageBox
 import sys
+class MainWindow(QWidget):
+    def __init__(self):
+        super().__init__()
 
-def select_game(game_name):
-    if game_name == "Project Cars 2":
-        show_project_cars_options()
-    elif game_name == "iRacing":
-        print("Selected game: iRacing")
+        self.setWindowTitle("Select a Racing Game")
 
-def show_project_cars_options():
-    window.hide()
-    project_cars_options_window = QWidget()
-    project_cars_options_window.setWindowTitle("Project Cars 2 Options")
+        layout = QVBoxLayout()
 
-    layout = QVBoxLayout()
+        # Przycisk "Project Cars 2"
+        button_project_cars = QPushButton("Project Cars 2")
+        button_project_cars.clicked.connect(lambda: self.show_game_options("Project Cars 2"))
+        layout.addWidget(button_project_cars)
 
-    # Przycisk "Twoje statystyki"
-    button_stats = QPushButton("Twoje statystyki")
-    layout.addWidget(button_stats)
+        # Przycisk "iRacing"
+        button_iracing = QPushButton("iRacing")
+        button_iracing.clicked.connect(lambda: self.show_game_options("iRacing"))
+        layout.addWidget(button_iracing)
 
-    # Przycisk "Dodaj wyniki"
-    button_add_results = QPushButton("Dodaj wyniki")
-    button_add_results.clicked.connect(show_add_results_options)
-    layout.addWidget(button_add_results)
+        self.setLayout(layout)
 
-    # Przycisk "Ranking światowy"
-    button_leaderboard = QPushButton("Ranking światowy")
-    layout.addWidget(button_leaderboard)
+    def show_game_options(self, game_name):
+        if game_name == "Project Cars 2":
+            project_cars_options_window = ProjectCarsOptionsWindow(self)
+            project_cars_options_window.exec()
+        elif game_name == "iRacing":
+            iracing_options_window = IRacingOptionsWindow(self)
+            iracing_options_window.exec()
 
-    # Przycisk "Powrót do wyboru gry"
-    button_back = QPushButton("Powrót do wyboru gry")
-    button_back.clicked.connect(lambda: show_main_window(project_cars_options_window))
-    layout.addWidget(button_back)
+class ProjectCarsOptionsWindow(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
 
-    project_cars_options_window.setLayout(layout)
-    project_cars_options_window.show()
+        self.setWindowTitle("Project Cars 2 Options")
 
-def show_main_window(previous_window):
-    previous_window.hide()
-    window.show()
+        layout = QVBoxLayout()
 
-def show_add_results_options():
-    add_results_options_window = QWidget()
-    add_results_options_window.setWindowTitle("Opcje Dodaj wyniki")
+        # Przycisk "Twoje statystyki"
+        button_stats = QPushButton("Twoje statystyki")
+        button_stats.clicked.connect(self.show_stats)
+        layout.addWidget(button_stats)
 
-    layout = QVBoxLayout()
+        # Przycisk "Dodaj wyniki"
+        button_add_results = QPushButton("Dodaj wyniki")
+        button_add_results.clicked.connect(self.show_add_results_options)
+        layout.addWidget(button_add_results)
 
-    # Przycisk "Pozycja w wyścigu"
-    button_position = QPushButton("Pozycja w wyścigu")
-    layout.addWidget(button_position)
-    button_position.clicked.connect(lambda: handle_option("Pozycja w wyścigu"))
+        # Przycisk "Ranking światowy"
+        button_leaderboard = QPushButton("Ranking światowy")
+        layout.addWidget(button_leaderboard)
 
-    # Przycisk "Model auta"
-    button_car_model = QPushButton("Model auta")
-    layout.addWidget(button_car_model)
-    button_car_model.clicked.connect(lambda: handle_option("Model auta"))
+        # Przycisk "Powrót do wyboru gry"
+        button_back = QPushButton("Powrót do wyboru gry")
+        button_back.clicked.connect(self.accept)
+        layout.addWidget(button_back)
 
-    # Przycisk "Ilość incydentów"
-    button_incidents = QPushButton("Ilość incydentów")
-    layout.addWidget(button_incidents)
-    button_incidents.clicked.connect(lambda: handle_option("Ilość incydentów"))
+        self.setLayout(layout)
 
-    back_button = QPushButton("Powrót do opcji Project Cars 2")
-    back_button.clicked.connect(add_results_options_window.close)
-    layout.addWidget(back_button)
+        # Przechowywanie wprowadzonego modelu auta
+        self.car_model = None
 
-    add_results_options_window.setLayout(layout)
-    add_results_options_window.show()
+    def show_stats(self):
+        if self.car_model:
+            QMessageBox.information(self, "Twoje statystyki", f"Model auta: {self.car_model}")
 
-def handle_option(option):
-    print(f"Wybrana opcja: {option}")
+    def show_add_results_options(self):
+        add_results_options_window = AddResultsOptionsWindow(self)
+        add_results_options_window.exec()
 
-app = QApplication(sys.argv)
+class AddResultsOptionsWindow(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
 
-window = QWidget()
-window.setWindowTitle("Select a Racing Game")
+        self.setWindowTitle("Opcje Dodaj wyniki")
 
-layout = QVBoxLayout()
+        layout = QVBoxLayout()
 
-# Przycisk "Project Cars 2"
-button_project_cars = QPushButton("Project Cars 2")
-button_project_cars.clicked.connect(lambda: select_game("Project Cars 2"))
-layout.addWidget(button_project_cars)
+        # Przycisk "Pozycja w wyścigu"
+        button_position = QPushButton("Pozycja w wyścigu")
+        layout.addWidget(button_position)
+        button_position.clicked.connect(lambda: self.handle_option("Pozycja w wyścigu"))
 
-# Przycisk "iRacing"
-button_iracing = QPushButton("iRacing")
-button_iracing.clicked.connect(lambda: select_game("iRacing"))
-layout.addWidget(button_iracing)
+        # Przycisk "Model auta"
+        button_car_model = QPushButton("Model auta")
+        button_car_model.clicked.connect(self.get_car_model)
+        layout.addWidget(button_car_model)
 
-window.setLayout(layout)
-window.show()
+        # Przycisk "Ilość incydentów"
+        button_incidents = QPushButton("Ilość incydentów")
+        layout.addWidget(button_incidents)
+        button_incidents.clicked.connect(lambda: self.handle_option("Ilość incydentów"))
 
-app.exec()
+        back_button = QPushButton("Powrót do opcji Project Cars 2")
+        back_button.clicked.connect(self.accept)
+        layout.addWidget(back_button)
+
+        self.setLayout(layout)
+
+    def handle_option(self, option):
+        print(f"Wybrana opcja: {option}")
+
+    def get_car_model(self):
+        car_model, ok_pressed = QInputDialog.getText(self, "Model auta", "Wprowadź model auta:")
+        if ok_pressed and car_model:
+            # Przechowujemy wprowadzony model auta w rodzicu
+            parent = self.parent()
+            if parent and isinstance(parent, ProjectCarsOptionsWindow):
+                parent.car_model = car_model
+
+class IRacingOptionsWindow(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.setWindowTitle("iRacing Options")
+
+        layout = QVBoxLayout()
+
+        # Przycisk "Twoje statystyki"
+        button_stats = QPushButton("Twoje statystyki")
+        layout.addWidget(button_stats)
+
+        # Przycisk "Dodaj wyniki"
+        button_add_results = QPushButton("Dodaj wyniki")
+        button_add_results.clicked.connect(self.show_add_results_options)
+        layout.addWidget(button_add_results)
+
+        # Przycisk "Ranking światowy"
+        layout.addWidget(QPushButton("Ranking światowy"))
+
+        # Przycisk "Powrót do wyboru gry"
+        button_back = QPushButton("Powrót do wyboru gry")
+        button_back.clicked.connect(self.accept)
+        layout.addWidget(button_back)
+
+        self.setLayout(layout)
+
+    def show_add_results_options(self):
+        add_results_options_window = AddResultsOptionsWindow(self)
+        add_results_options_window.exec()
+
+if __name__ == "__main__":
+    app = QApplication([])
+    main_window = MainWindow()
+    main_window.show()
+    app.exec()
 
 
