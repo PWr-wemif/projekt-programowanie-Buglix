@@ -1,5 +1,39 @@
-from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QDialog, QLabel, QInputDialog, QMessageBox
-import sys
+from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QDialog, QTableWidget, \
+    QTableWidgetItem, QInputDialog
+import json
+
+class SingletonMeta(type):
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            instance = super().__call__(*args, **kwargs)
+            cls._instances[cls] = instance
+        return cls._instances[cls]
+
+class DataStorage(metaclass=SingletonMeta):
+    def __init__(self):
+        self.car_model = None
+        self.incidents_count = None
+
+    def save_to_file(self):
+        data = {
+            "car_model": self.car_model,
+            "incidents_count": self.incidents_count
+        }
+        with open("data.json", "w") as file:
+            json.dump(data, file)
+
+    def load_from_file(self):
+        try:
+            with open("data.json", "r") as file:
+                data = json.load(file)
+                self.car_model = data.get("car_model")
+                self.incidents_count = data.get("incidents_count")
+        except FileNotFoundError:
+            # Handle the case when the file does not exist
+            pass
+
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
@@ -8,12 +42,10 @@ class MainWindow(QWidget):
 
         layout = QVBoxLayout()
 
-        # Przycisk "Project Cars 2"
         button_project_cars = QPushButton("Project Cars 2")
         button_project_cars.clicked.connect(lambda: self.show_game_options("Project Cars 2"))
         layout.addWidget(button_project_cars)
 
-        # Przycisk "iRacing"
         button_iracing = QPushButton("iRacing")
         button_iracing.clicked.connect(lambda: self.show_game_options("iRacing"))
         layout.addWidget(button_iracing)
@@ -36,37 +68,61 @@ class ProjectCarsOptionsWindow(QDialog):
 
         layout = QVBoxLayout()
 
-        # Przycisk "Twoje statystyki"
         button_stats = QPushButton("Twoje statystyki")
         button_stats.clicked.connect(self.show_stats)
         layout.addWidget(button_stats)
 
-        # Przycisk "Dodaj wyniki"
         button_add_results = QPushButton("Dodaj wyniki")
         button_add_results.clicked.connect(self.show_add_results_options)
         layout.addWidget(button_add_results)
 
-        # Przycisk "Ranking światowy"
         button_leaderboard = QPushButton("Ranking światowy")
         layout.addWidget(button_leaderboard)
 
-        # Przycisk "Powrót do wyboru gry"
         button_back = QPushButton("Powrót do wyboru gry")
         button_back.clicked.connect(self.accept)
         layout.addWidget(button_back)
 
+        # Initialize the QTableWidget here, but don't show it initially
+        self.results_table = QTableWidget(self)
+        self.results_table.setColumnCount(3)
+        self.results_table.setHorizontalHeaderLabels(["Model auta", "Pozycja w wyścigu", "Ilość incydentów"])
+
+        # Add the results_table to the layout
+        layout.addWidget(self.results_table)
+
         self.setLayout(layout)
 
-        # Przechowywanie wprowadzonego modelu auta
-        self.car_model = None
+        # Load data from file on initialization
+        data_storage = DataStorage()
+        data_storage.load_from_file()
 
     def show_stats(self):
-        if self.car_model:
-            QMessageBox.information(self, "Twoje statystyki", f"Model auta: {self.car_model}")
+        data_storage = DataStorage()
+        if data_storage.car_model:
+            self.populate_results_table()
+            # Show the table only when stats are available
+            self.results_table.show()
 
     def show_add_results_options(self):
         add_results_options_window = AddResultsOptionsWindow(self)
         add_results_options_window.exec()
+
+    def populate_results_table(self):
+        data_storage = DataStorage()
+        # Assuming you have a data structure to store the latest results
+        latest_results = [(data_storage.car_model, "1st",
+                            str(data_storage.incidents_count) if data_storage.incidents_count is not None else "")]
+
+        # Clear the existing content
+        self.results_table.setRowCount(0)
+
+        # Populate the table with the latest results
+        for row, (car_model, position, incidents_count) in enumerate(latest_results):
+            self.results_table.insertRow(row)
+            self.results_table.setItem(row, 0, QTableWidgetItem(car_model))
+            self.results_table.setItem(row, 1, QTableWidgetItem(position))
+            self.results_table.setItem(row, 2, QTableWidgetItem(incidents_count))
 
 class AddResultsOptionsWindow(QDialog):
     def __init__(self, parent=None):
@@ -76,20 +132,17 @@ class AddResultsOptionsWindow(QDialog):
 
         layout = QVBoxLayout()
 
-        # Przycisk "Pozycja w wyścigu"
         button_position = QPushButton("Pozycja w wyścigu")
         layout.addWidget(button_position)
         button_position.clicked.connect(lambda: self.handle_option("Pozycja w wyścigu"))
 
-        # Przycisk "Model auta"
         button_car_model = QPushButton("Model auta")
         button_car_model.clicked.connect(self.get_car_model)
         layout.addWidget(button_car_model)
 
-        # Przycisk "Ilość incydentów"
         button_incidents = QPushButton("Ilość incydentów")
+        button_incidents.clicked.connect(self.get_incidents_count)
         layout.addWidget(button_incidents)
-        button_incidents.clicked.connect(lambda: self.handle_option("Ilość incydentów"))
 
         back_button = QPushButton("Powrót do opcji Project Cars 2")
         back_button.clicked.connect(self.accept)
@@ -103,10 +156,14 @@ class AddResultsOptionsWindow(QDialog):
     def get_car_model(self):
         car_model, ok_pressed = QInputDialog.getText(self, "Model auta", "Wprowadź model auta:")
         if ok_pressed and car_model:
-            # Przechowujemy wprowadzony model auta w rodzicu
-            parent = self.parent()
-            if parent and isinstance(parent, ProjectCarsOptionsWindow):
-                parent.car_model = car_model
+            data_storage = DataStorage()
+            data_storage.car_model = car_model
+
+    def get_incidents_count(self):
+        incidents_count, ok_pressed = QInputDialog.getInt(self, "Ilość incydentów", "Wprowadź ilość incydentów:", 0, 0, 100)
+        if ok_pressed:
+            data_storage = DataStorage()
+            data_storage.incidents_count = incidents_count
 
 class IRacingOptionsWindow(QDialog):
     def __init__(self, parent=None):
@@ -116,19 +173,15 @@ class IRacingOptionsWindow(QDialog):
 
         layout = QVBoxLayout()
 
-        # Przycisk "Twoje statystyki"
         button_stats = QPushButton("Twoje statystyki")
         layout.addWidget(button_stats)
 
-        # Przycisk "Dodaj wyniki"
         button_add_results = QPushButton("Dodaj wyniki")
         button_add_results.clicked.connect(self.show_add_results_options)
         layout.addWidget(button_add_results)
 
-        # Przycisk "Ranking światowy"
         layout.addWidget(QPushButton("Ranking światowy"))
 
-        # Przycisk "Powrót do wyboru gry"
         button_back = QPushButton("Powrót do wyboru gry")
         button_back.clicked.connect(self.accept)
         layout.addWidget(button_back)
@@ -144,5 +197,3 @@ if __name__ == "__main__":
     main_window = MainWindow()
     main_window.show()
     app.exec()
-
-
