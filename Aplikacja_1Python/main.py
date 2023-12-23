@@ -1,6 +1,7 @@
 from PySide6.QtCore import Signal, QTimer, QObject
 from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QDialog, QTableWidget, \
-    QTableWidgetItem, QInputDialog
+    QTableWidgetItem, QInputDialog, QLabel
+
 import json
 
 class SignalHandler(QObject):
@@ -16,7 +17,7 @@ class DataStorage:
         self.incidents_count = None
         self.position_in_race = None
         self.track_name = None
-        self.results_history = []  # Now storing results history as RaceResult objects
+        self.results_history = []  
         self.max_results_history = 15
 
     def save_to_file(self):
@@ -40,7 +41,6 @@ class DataStorage:
                 self.track_name = data.get("track_name")
                 self.results_history = [RaceResult(*result) for result in data.get("results_history", [])]
         except FileNotFoundError:
-            # Handle the case when the file does not exist
             pass
 
     def add_result_to_history(self, result):
@@ -66,16 +66,20 @@ class MainWindow(QWidget):
         button_iracing.clicked.connect(lambda: self.show_game_options("iRacing"))
         layout.addWidget(button_iracing)
 
+        self.data_storage = DataStorage()  
+
         self.setLayout(layout)
 
     def show_game_options(self, game_name):
         if game_name == "Project Cars 2":
-            project_cars_options_window = ProjectCarsOptionsWindow(self)
-            project_cars_options_window.showStatsSignal.connect(self.delayed_show_stats)
+            project_cars_options_window = ProjectCarsOptionsWindow(self.data_storage, self)
+            project_cars_options_window.showStatsSignal.connect(project_cars_options_window.populate_results_table)
+            project_cars_options_window.showStatsSignal.connect(project_cars_options_window.show_stats)
             project_cars_options_window.exec()
         elif game_name == "iRacing":
-            iracing_options_window = IRacingOptionsWindow(self)
-            iracing_options_window.showStatsSignal.connect(self.delayed_show_stats)
+            iracing_options_window = IRacingOptionsWindow(self.data_storage, self)
+            iracing_options_window.showStatsSignal.connect(iracing_options_window.populate_results_table)
+            iracing_options_window.showStatsSignal.connect(iracing_options_window.show_stats)
             iracing_options_window.exec()
 
     def delayed_show_stats(self):
@@ -87,7 +91,7 @@ class MainWindow(QWidget):
 class ProjectCarsOptionsWindow(QDialog):
     showStatsSignal = Signal()
 
-    def __init__(self, parent=None):
+    def __init__(self, data_storage, parent=None):
         super().__init__(parent)
 
         self.setWindowTitle("Project Cars 2 Options")
@@ -109,47 +113,43 @@ class ProjectCarsOptionsWindow(QDialog):
         button_back.clicked.connect(self.accept)
         layout.addWidget(button_back)
 
-        self.results_table = None  # Do not initialize the table here
+        self.results_table = None
+        self.data_storage = data_storage  
 
         self.setLayout(layout)
 
     def show_stats(self):
-        self.showStatsSignal.emit()
+        stats_window = StatsWindow(self.data_storage.results_history, self)
+        stats_window.exec()
 
     def show_add_results_options(self):
-        add_results_options_window = AddResultsOptionsWindow(self)
+        add_results_options_window = AddResultsOptionsWindow(self.data_storage, self)
         add_results_options_window.showStatsSignal.connect(self.show_stats)
         add_results_options_window.exec()
 
     def initialize_results_table(self):
-        # Initialize the QTableWidget here
         self.results_table = QTableWidget(self)
-        self.results_table.setColumnCount(4)  # Added a column for the track_name
+        self.results_table.setColumnCount(4)
         self.results_table.setHorizontalHeaderLabels(["Model auta", "Ilość incydentów", "Pozycja w wyniku", "Tor"])
 
-        # Add the results_table to the layout
+    def populate_results_table(self):
+        latest_results = self.data_storage.results_history
+        self.initialize_results_table()
+
+        for row, result in enumerate(latest_results):
+            self.results_table.insertRow(row)
+            self.results_table.setItem(row, 0, QTableWidgetItem(result.car_model))
+            self.results_table.setItem(row, 1, QTableWidgetItem(str(result.incidents_count)))
+            self.results_table.setItem(row, 2, QTableWidgetItem(str(result.position_in_race) if result.position_in_race is not None else ""))
+            self.results_table.setItem(row, 3, QTableWidgetItem(result.track_name if result.track_name is not None else ""))
+
         layout = self.layout()
         layout.addWidget(self.results_table)
-
-    def populate_results_table(self):
-        data_storage = DataStorage()
-        # Assuming you have a data structure to store the latest results
-        latest_results = [(data_storage.car_model, str(data_storage.incidents_count),
-                            str(data_storage.position_in_race) if data_storage.position_in_race is not None else "",
-                            data_storage.track_name if data_storage.track_name is not None else "")]
-
-        # Populate the table with the latest results
-        for row, (car_model, incidents_count, position_in_race, track_name) in enumerate(latest_results):
-            self.results_table.insertRow(row)
-            self.results_table.setItem(row, 0, QTableWidgetItem(car_model))
-            self.results_table.setItem(row, 1, QTableWidgetItem(incidents_count))
-            self.results_table.setItem(row, 2, QTableWidgetItem(position_in_race))
-            self.results_table.setItem(row, 3, QTableWidgetItem(track_name))
 
 class AddResultsOptionsWindow(QDialog):
     showStatsSignal = Signal()
 
-    def __init__(self, parent=None):
+    def __init__(self, data_storage, parent=None):
         super().__init__(parent)
 
         self.setWindowTitle("Opcje Dodaj wyniki")
@@ -172,42 +172,54 @@ class AddResultsOptionsWindow(QDialog):
         button_track_name.clicked.connect(self.get_track_name)
         layout.addWidget(button_track_name)
 
+        save_button = QPushButton("Zapisz")
+        save_button.clicked.connect(self.save_and_close)
+        layout.addWidget(save_button)
+
         back_button = QPushButton("Powrót do opcji Project Cars 2")
         back_button.clicked.connect(self.accept)
         layout.addWidget(back_button)
 
+        self.data_storage = data_storage
+        self.data_storage.load_from_file()
         self.setLayout(layout)
 
     def get_car_model(self):
         car_model, ok_pressed = QInputDialog.getText(self, "Model auta", "Wprowadź model auta:")
         if ok_pressed and car_model:
-            data_storage = DataStorage()
-            data_storage.car_model = car_model
+            self.data_storage.car_model = car_model
 
     def get_incidents_count(self):
         incidents_count, ok_pressed = QInputDialog.getInt(self, "Ilość incydentów", "Wprowadź ilość incydentów:", 0, 0, 100)
         if ok_pressed:
-            data_storage = DataStorage()
-            data_storage.incidents_count = incidents_count
+            self.data_storage.incidents_count = incidents_count
 
     def get_position_in_race(self):
         position_in_race, ok_pressed = QInputDialog.getInt(self, "Pozycja w wyniku", "Wprowadź pozycję w wyniku:", 1, 1, 100)
         if ok_pressed:
-            data_storage = DataStorage()
-            data_storage.position_in_race = position_in_race
+            self.data_storage.position_in_race = position_in_race
 
     def get_track_name(self):
         track_name, ok_pressed = QInputDialog.getText(self, "Tor", "Wprowadź nazwę toru:")
         if ok_pressed and track_name:
-            data_storage = DataStorage()
-            data_storage.track_name = track_name
+            self.data_storage.track_name = track_name
 
-        self.showStatsSignal.emit()  # Emit signal after getting all data
+    def save_and_close(self):
+        
+        result = RaceResult(self.data_storage.car_model, self.data_storage.incidents_count,
+                             self.data_storage.position_in_race, self.data_storage.track_name)
+        self.data_storage.add_result_to_history(result)
+
+        
+        self.showStatsSignal.emit()
+
+        
+        self.accept()
 
 class IRacingOptionsWindow(QDialog):
     showStatsSignal = Signal()
 
-    def __init__(self, parent=None):
+    def __init__(self, data_storage, parent=None):
         super().__init__(parent)
 
         self.setWindowTitle("iRacing Options")
@@ -228,21 +240,49 @@ class IRacingOptionsWindow(QDialog):
         button_back.clicked.connect(self.accept)
         layout.addWidget(button_back)
 
+        self.data_storage = data_storage  
         self.setLayout(layout)
 
     def show_stats(self):
         self.showStatsSignal.emit()
 
     def show_add_results_options(self):
-        add_results_options_window = AddResultsOptionsWindow(self)
+        add_results_options_window = AddResultsOptionsWindow(self.data_storage, self)
         add_results_options_window.showStatsSignal.connect(self.show_stats)
         add_results_options_window.exec()
+
+class StatsWindow(QDialog):
+    def __init__(self, results_history, parent=None):
+        super().__init__(parent)
+
+        self.setWindowTitle("Twoje statystyki")
+
+        layout = QVBoxLayout()
+
+        self.results_table = QTableWidget(self)
+        self.results_table.setColumnCount(4)
+        self.results_table.setHorizontalHeaderLabels(["Model auta", "Ilość incydentów", "Pozycja w wyniku", "Tor"])
+
+        layout.addWidget(self.results_table)
+        self.data_storage = DataStorage()
+        self.data_storage.load_from_file()
+        self.populate_results_table(results_history)
+
+        self.setLayout(layout)
+
+    def populate_results_table(self, results_history):
+        for row, result in enumerate(results_history):
+            self.results_table.insertRow(row)
+            self.results_table.setItem(row, 0, QTableWidgetItem(result.car_model))
+            self.results_table.setItem(row, 1, QTableWidgetItem(str(result.incidents_count)))
+            self.results_table.setItem(row, 2, QTableWidgetItem(str(result.position_in_race) if result.position_in_race is not None else ""))
+            self.results_table.setItem(row, 3, QTableWidgetItem(result.track_name if result.track_name is not None else ""))
 
 if __name__ == "__main__":
     app = QApplication([])
 
     main_window = MainWindow()
-    main_window.showStatsSignal.connect(main_window.delayed_show_stats)  # Połączenie sygnału z metodą delayed_show_stats
+    main_window.showStatsSignal.connect(main_window.delayed_show_stats)
     main_window.show()
 
     app.exec()
