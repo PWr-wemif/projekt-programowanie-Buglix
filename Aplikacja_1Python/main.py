@@ -3,6 +3,7 @@ from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, Q
     QTableWidgetItem, QInputDialog, QLabel
 
 import json
+from iracingdataapi.client import irDataClient
 
 class SignalHandler(QObject):
     showStatsSignal = Signal()
@@ -54,7 +55,7 @@ class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("Select a Racing Game")
+        self.setWindowTitle("Wybierz grę wyścigową")
 
         layout = QVBoxLayout()
 
@@ -94,7 +95,7 @@ class ProjectCarsOptionsWindow(QDialog):
     def __init__(self, data_storage, parent=None):
         super().__init__(parent)
 
-        self.setWindowTitle("Project Cars 2 Options")
+        self.setWindowTitle("Opcje Project Cars 2")
 
         layout = QVBoxLayout()
 
@@ -130,7 +131,7 @@ class ProjectCarsOptionsWindow(QDialog):
     def initialize_results_table(self):
         self.results_table = QTableWidget(self)
         self.results_table.setColumnCount(4)
-        self.results_table.setHorizontalHeaderLabels(["Model auta", "Ilość incydentów", "Pozycja w wyniku", "Tor"])
+        self.results_table.setHorizontalHeaderLabels(["Model auta", "Ilość incydentów", "Pozycja w wyścigu", "Tor"])
 
     def populate_results_table(self):
         latest_results = self.data_storage.results_history
@@ -164,7 +165,7 @@ class AddResultsOptionsWindow(QDialog):
         button_incidents.clicked.connect(self.get_incidents_count)
         layout.addWidget(button_incidents)
 
-        button_position = QPushButton("Pozycja w wyniku")
+        button_position = QPushButton("Pozycja w wyścigu")
         button_position.clicked.connect(self.get_position_in_race)
         layout.addWidget(button_position)
 
@@ -195,7 +196,7 @@ class AddResultsOptionsWindow(QDialog):
             self.data_storage.incidents_count = incidents_count
 
     def get_position_in_race(self):
-        position_in_race, ok_pressed = QInputDialog.getInt(self, "Pozycja w wyniku", "Wprowadź pozycję w wyniku:", 1, 1, 100)
+        position_in_race, ok_pressed = QInputDialog.getInt(self, "Pozycja w wyścigu", "Wprowadź pozycję w wyniku:", 1, 1, 100)
         if ok_pressed:
             self.data_storage.position_in_race = position_in_race
 
@@ -205,15 +206,12 @@ class AddResultsOptionsWindow(QDialog):
             self.data_storage.track_name = track_name
 
     def save_and_close(self):
-        
         result = RaceResult(self.data_storage.car_model, self.data_storage.incidents_count,
                              self.data_storage.position_in_race, self.data_storage.track_name)
         self.data_storage.add_result_to_history(result)
 
-        
         self.showStatsSignal.emit()
 
-        
         self.accept()
 
 class IRacingOptionsWindow(QDialog):
@@ -222,7 +220,7 @@ class IRacingOptionsWindow(QDialog):
     def __init__(self, data_storage, parent=None):
         super().__init__(parent)
 
-        self.setWindowTitle("iRacing Options")
+        self.setWindowTitle("Opcje iRacing")
 
         layout = QVBoxLayout()
 
@@ -243,13 +241,43 @@ class IRacingOptionsWindow(QDialog):
         self.data_storage = data_storage  
         self.setLayout(layout)
 
+        self.showStatsSignal.connect(self.show_stats)
+
     def show_stats(self):
-        self.showStatsSignal.emit()
+        try:
+            idc = irDataClient(username="f12020@o2.pl", password="Kxn157890-")
+            driver_info = idc.stats_member_recent_races(cust_id=819528)
+
+            driver_info_window = DriverInfoWindow(driver_info, self)
+            driver_info_window.exec()
+        except Exception as e:
+            print(f"Błąd podczas pobierania informacji o kierowcy: {e}")
 
     def show_add_results_options(self):
         add_results_options_window = AddResultsOptionsWindow(self.data_storage, self)
         add_results_options_window.showStatsSignal.connect(self.show_stats)
         add_results_options_window.exec()
+
+    def populate_results_table(self):
+        pass
+
+
+class DriverInfoWindow(QDialog):
+    def __init__(self, driver_info, parent=None):
+        super().__init__(parent)
+
+        self.setWindowTitle("Informacje o kierowcy")
+
+        layout = QVBoxLayout()
+
+        self.driver_info_label = QLabel(f"Informacje o kierowcy: {driver_info}")
+        layout.addWidget(self.driver_info_label)
+
+        close_button = QPushButton("Zamknij")
+        close_button.clicked.connect(self.accept)
+        layout.addWidget(close_button)
+
+        self.setLayout(layout)
 
 class StatsWindow(QDialog):
     def __init__(self, results_history, parent=None):
@@ -261,7 +289,7 @@ class StatsWindow(QDialog):
 
         self.results_table = QTableWidget(self)
         self.results_table.setColumnCount(4)
-        self.results_table.setHorizontalHeaderLabels(["Model auta", "Ilość incydentów", "Pozycja w wyniku", "Tor"])
+        self.results_table.setHorizontalHeaderLabels(["Model auta", "Ilość incydentów", "Pozycja w wyścigu", "Tor"])
 
         layout.addWidget(self.results_table)
         self.data_storage = DataStorage()
