@@ -245,7 +245,7 @@ class IRacingOptionsWindow(QDialog):
 
     def show_stats(self):
         try:
-            idc = irDataClient(username="f12020@o2.pl", password="Kxn157890-")
+            idc = irDataClient(username="***", password="***")
             driver_info = idc.stats_member_recent_races(cust_id=819528)
 
             driver_info_window = DriverInfoWindow(driver_info, self)
