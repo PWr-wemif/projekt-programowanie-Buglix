@@ -11,10 +11,13 @@ class SignalHandler(QObject):
 class RaceResult:
     def __init__(self, *args, **kwargs):
         self.car_model = kwargs.get("car_model", "")
-        self.incidents_count = kwargs.get("incidents_count", "")
-        self.position_in_race = kwargs.get("position_in_race", "")
+        self.incidents_count = kwargs.get("incidents_count", 0)  # Zmiana na liczbowy typ danych
+        self.position_in_race = kwargs.get("position_in_race", 0)  # Zmiana na liczbowy typ danych
         self.track_name = kwargs.get("track_name", "")
-        self.irating = kwargs.get("irating", "")
+        self.irating = kwargs.get("irating", 0)  # Dodanie pola irating i zmiana na liczbowy typ danych
+        self.start_position = kwargs.get("start_position", 0)  # Dodanie pola start_position i zmiana na liczbowy typ danych
+        self.finish_position = kwargs.get("finish_position", 0)
+
 
 class DataStorage:
     def __init__(self):
@@ -32,16 +35,17 @@ class DataStorage:
             "position_in_race": self.position_in_race,
             "track_name": self.track_name,
             "results_history": [
-                {"car_model": result.car_model,
-                 "incidents_count": result.incidents_count,
-                 "position_in_race": result.position_in_race,
-                 "track_name": result.track_name,
-                 "irating": result.irating
-                 } for result in self.results_history
+                {
+                    "car_model": result.car_model,
+                    "incidents_count": result.incidents_count,
+                    "position_in_race": result.position_in_race,
+                    "track_name": result.track_name,
+                    "irating": result.irating
+                } for result in self.results_history
             ]
         }
         with open("data.json", "w") as file:
-            json.dump(data, file)
+            json.dump(data, file, indent=4)
 
     def load_from_file(self):
         try:
@@ -51,7 +55,9 @@ class DataStorage:
                 self.incidents_count = data.get("incidents_count")
                 self.position_in_race = data.get("position_in_race")
                 self.track_name = data.get("track_name")
-                self.results_history = [RaceResult(**result) for result in data.get("results_history", [])]
+                self.results_history = [
+                    RaceResult(**result) for result in data.get("results_history", [])
+                ]
         except (FileNotFoundError, json.JSONDecodeError) as e:
             print(f"Błąd podczas wczytywania danych z pliku: {e}")
 
@@ -131,20 +137,17 @@ class IRacingStatsWindow(StatsWindow):
     def __init__(self, results_history, parent=None):
         super().__init__(results_history, parent)
 
-    # Modyfikacja: Dostosuj funkcję do wyświetlania statystyk iRacing
     def populate_results_table(self, results_history):
-        for row, result in enumerate(results_history):
-            self.results_table.insertRow(row)
-            self.results_table.setItem(row, 0, QTableWidgetItem(result.car_model))
-            self.results_table.setItem(row, 1, QTableWidgetItem(str(result.incidents_count)))
-            
-            # Aktualizacja: Sprawdź, czy atrybut 'start_position' istnieje
-            start_position = getattr(result, 'start_position', None)
-            self.results_table.setItem(row, 2, QTableWidgetItem(str(start_position) if start_position is not None else ""))
-            
-            # Aktualizacja: Sprawdź, czy atrybut 'end_position' istnieje
-            end_position = getattr(result, 'end_position', None)
-            self.results_table.setItem(row, 3, QTableWidgetItem(result.track_name if result.track_name is not None else ""))
+        for result in reversed(results_history):
+            rowPosition = self.results_table.rowCount()
+            self.results_table.insertRow(rowPosition)
+            self.results_table.setItem(rowPosition, 0, QTableWidgetItem(result.car_model))
+            self.results_table.setItem(rowPosition, 1, QTableWidgetItem(str(result.incidents_count)))
+            self.results_table.setItem(rowPosition, 2, QTableWidgetItem(str(result.start_position)))
+            self.results_table.setItem(rowPosition, 3, QTableWidgetItem(str(result.finish_position)))
+        self.results_table.setItem(rowPosition, 4, QTableWidgetItem(result.track_name))
+
+
 class ProjectCarsOptionsWindow(QDialog):
     showStatsSignal = Signal()
 
@@ -177,13 +180,11 @@ class ProjectCarsOptionsWindow(QDialog):
 
     def show_stats(self):
         if isinstance(self, IRacingOptionsWindow):
-            # Modyfikacja: Wywołaj funkcję związana z opcją "iRacing"
             self.show_iracing_stats()
         else:
             stats_window = StatsWindow(self.data_storage.results_history, self)
             stats_window.exec()
 
-    # Modyfikacja: Dodaj nową funkcję do obsługi statystyk dla iRacing
     def show_iracing_stats(self):
         iracing_stats_window = IRacingStatsWindow(self.data_storage.results_history, self)
         iracing_stats_window.exec()
@@ -283,19 +284,20 @@ class AddResultsOptionsWindow(QDialog):
 
         self.accept()
 
-
 class IRacingRaceResult:
     def __init__(self, race_data):
         self.series_name = race_data.get('series_name', '')
-        self.car_model = race_data.get('car_model', '')
+        self.car_model = race_data.get('car', {}).get('name', '') if 'car' in race_data else ''
+        self.car_class = race_data.get('car', {}).get('car_class', '') if 'car' in race_data else ''
         self.start_position = race_data.get('start_position', 0)
         self.finish_position = race_data.get('finish_position', 0)
-        self.track_name = race_data.get('track_name', '')
-        self.incidents_count = race_data.get('incidents_count', 0)
+        self.track_name = race_data.get('track', {}).get('name', '') if 'track' in race_data else ''
+        self.incidents_count = race_data.get('incidents', 0)
         self.points = race_data.get('points', 0)
         self.strength_of_field = race_data.get('strength_of_field', 0)
         self.qualifying_time = race_data.get('qualifying_time', '')
         self.laps_led = race_data.get('laps_led', 0)
+
 
 class IRacingOptionsWindow(QDialog):
     showStatsSignal = Signal()
@@ -323,9 +325,8 @@ class IRacingOptionsWindow(QDialog):
 
         self.data_storage = data_storage
 
-        # Dodajemy kontrolkę do wyświetlania wyników w oknie aplikacji
         self.results_text_edit = QTextEdit(self)
-        self.results_text_edit.setReadOnly(True)  # Ustawiamy tylko do odczytu
+        self.results_text_edit.setReadOnly(True)
         layout.addWidget(self.results_text_edit)
 
         self.setLayout(layout)
@@ -339,11 +340,10 @@ class IRacingOptionsWindow(QDialog):
 
             race_results = [IRacingRaceResult(race_data) for race_data in driver_info['races']]
 
-            # Wyświetlamy wyniki w polu tekstowym
             self.results_text_edit.clear()
             for result in race_results:
                 self.results_text_edit.append(f"Series: {result.series_name}")
-                self.results_text_edit.append(f"Car Model: {result.car_model}")
+                self.results_text_edit.append(f"Car Model: {result.car_model} ({result.car_class})")
                 self.results_text_edit.append(f"Start Position: {result.start_position}")
                 self.results_text_edit.append(f"Finish Position: {result.finish_position}")
                 self.results_text_edit.append(f"Track: {result.track_name}")
