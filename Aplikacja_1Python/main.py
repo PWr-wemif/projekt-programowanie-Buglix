@@ -145,11 +145,12 @@ class IRacingStatsWindow(StatsWindow):
         for result in reversed(results_history):
             rowPosition = self.results_table.rowCount()
             self.results_table.insertRow(rowPosition)
-            self.results_table.setItem(rowPosition, 0, QTableWidgetItem(result.car_model))
+            self.results_table.setItem(rowPosition, 0, QTableWidgetItem(IRacingRaceResult.car_id_to_car_name.get(result.car_id, "Unknown")))
             self.results_table.setItem(rowPosition, 1, QTableWidgetItem(str(result.incidents_count)))
             self.results_table.setItem(rowPosition, 2, QTableWidgetItem(str(result.start_position)))
             self.results_table.setItem(rowPosition, 3, QTableWidgetItem(str(result.finish_position)))
-        self.results_table.setItem(rowPosition, 4, QTableWidgetItem(result.track_name))
+            self.results_table.setItem(rowPosition, 4, QTableWidgetItem(result.track_name))
+
 
 
 class ProjectCarsOptionsWindow(QDialog):
@@ -289,6 +290,51 @@ class AddResultsOptionsWindow(QDialog):
         self.accept()
 
 class IRacingRaceResult:
+
+    car_id_to_car_name = {
+        1:"Skip Barber Formula 2000",
+        2:"Modified - SK",
+        3:"Pontiac Solstice",
+        4:"[Legacy] Pro Mazda",
+        5:"Legends Ford '34 Coupe",
+        10:"Pontiac Solstice - Rookie",
+        11:"Legends Ford '34 Coupe - Rookie",
+        12:"[Retired] - Chevrolet Monte Carlo SS",
+        13:"Radical SR8",
+        18:"Silver Crown",
+        20:"[Legacy] NASCAR Truck Chevrolet Silverado - 2008",
+        21:"[Legacy] Riley MkXX Daytona Prototype - 2008",
+        22:"[Legacy] NASCAR Cup Chevrolet Impala COT - 2009",
+        23:"SCCA Spec Racer Ford",
+        24:"ARCA Menards Chevrolet Impala",
+        25:"Lotus 79",
+        26:"Chevrolet Corvette C6.R GT1",
+        27:"VW Jetta TDI Cup",
+        28:"[Legacy] V8 Supercar Ford Falcon - 2009",
+        29:"[Legacy] Dallara IR-05",
+        30:"Ford Mustang FR500S",
+        31:"Modified - NASCAR Whelen Tour",
+        33:"Williams-Toyota FW31",
+        34:"[Legacy] Mazda MX-5 Cup - 2010",
+        35:"[Legacy] Mazda MX-5 Roadster - 2010",
+        36:"Street Stock",
+        37:"Sprint Car",
+        38:"[Legacy] NASCAR Nationwide Chevrolet Impala - 2012",
+        39:"HPD ARX-01c",
+        41:"Cadillac CTS-V Racecar",
+        43:"McLaren MP4-12C GT3",
+        44:"Kia Optima",
+        59:"Ford GT GT3",
+        67:"Global Mazda MX-5 Cup",
+        128:"Dallara P217",
+        132:"BMW M4 GT3",
+        148:"FIA F4",
+        157:"Mercedes-AMG GT4",
+        159:"BMW M Hybrid V8",
+        160:"Toyota GR86",
+        173:"Ferrari 296 GT3",
+        176:"Audi R8 LMS EVO II GT3",
+    }
     def __init__(self, race_data):
         self.series_name = race_data.get('series_name', '')
         self.start_position = race_data.get('start_position', 0)
@@ -301,7 +347,8 @@ class IRacingRaceResult:
         self.newi_rating = race_data.get('newi_rating', '')
         self.laps_led = race_data.get('laps_led', 0)
         self.car_id = race_data.get('car_id', 0)
-
+        self.car_name = IRacingRaceResult.car_id_to_car_name.get(self.car_id, 'Unknown')
+    
 
 class IRacingOptionsWindow(QDialog):
     showStatsSignal = Signal()
@@ -346,7 +393,7 @@ class IRacingOptionsWindow(QDialog):
 
                 for result in race_results:
                     self.results_text_edit.append(f"Series: {result.series_name}")
-                    self.results_text_edit.append(f"Car Model: {result.car_id}")
+                    self.results_text_edit.append(f"Car Model: {result.car_name}")
                     self.results_text_edit.append(f"Track: {result.track_name}")
                     self.results_text_edit.append(f"Start Position: {result.start_position}")
                     self.results_text_edit.append(f"Finish Position: {result.finish_position}")
