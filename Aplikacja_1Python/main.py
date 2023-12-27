@@ -99,6 +99,11 @@ class MainWindow(QWidget):
             iracing_options_window = IRacingOptionsWindow(self.data_storage, self)
             iracing_options_window.showStatsSignal.connect(iracing_options_window.populate_results_table)
             iracing_options_window.showStatsSignal.connect(iracing_options_window.show_stats)
+
+            # Dodaj poniższą linię, aby opóźnić pojawienie się okna do momentu kliknięcia "Twoje statystyki"
+            self.showStatsSignal.connect(lambda: iracing_options_window.show())  # Pokaż okno tylko po kliknięciu
+            
+            iracing_options_window.hide()
             iracing_options_window.exec()
 
     def delayed_show_stats(self):
@@ -287,8 +292,8 @@ class AddResultsOptionsWindow(QDialog):
 class IRacingRaceResult:
     def __init__(self, race_data):
         self.series_name = race_data.get('series_name', '')
-        self.car_model = race_data.get('car', {}).get('name', '') if 'car' in race_data else ''
-        self.car_class = race_data.get('car', {}).get('car_class', '') if 'car' in race_data else ''
+        self.car = race_data.get('car', {}).get('car', '') if 'car' in race_data else ''
+        self.carclass = race_data.get('car', {}).get('carclass', '') if 'car' in race_data else ''
         self.start_position = race_data.get('start_position', 0)
         self.finish_position = race_data.get('finish_position', 0)
         self.track_name = race_data.get('track', {}).get('name', '') if 'track' in race_data else ''
@@ -304,65 +309,67 @@ class IRacingOptionsWindow(QDialog):
 
     def __init__(self, data_storage, parent=None):
         super().__init__(parent)
-
         self.setWindowTitle("Opcje iRacing")
 
-        layout = QVBoxLayout()
+        self.layout = QVBoxLayout(self)  # Ustawienie głównego układu dla okna
 
-        button_stats = QPushButton("Twoje statystyki")
-        button_stats.clicked.connect(self.show_stats)
-        layout.addWidget(button_stats)
+        # Tworzenie przycisków i dodawanie ich do układu
+        self.button_stats = QPushButton("Twoje statystyki")
+        self.button_stats.clicked.connect(self.show_stats)
+        self.layout.addWidget(self.button_stats)
 
-        button_add_results = QPushButton("Nadchodzące wyścigi")
-        button_add_results.clicked.connect(self.show_add_results_options)
-        layout.addWidget(button_add_results)
+        self.button_add_results = QPushButton("Nadchodzące wyścigi")
+        self.button_add_results.clicked.connect(self.show_add_results_options)
+        self.layout.addWidget(self.button_add_results)
 
-        layout.addWidget(QPushButton("Ranking światowy"))
+        self.button_ranking = QPushButton("Ranking światowy")
+        self.layout.addWidget(self.button_ranking)
 
-        button_back = QPushButton("Powrót do wyboru gry")
-        button_back.clicked.connect(self.accept)
-        layout.addWidget(button_back)
+        self.button_back = QPushButton("Powrót do wyboru gry")
+        self.button_back.clicked.connect(self.accept)
+        self.layout.addWidget(self.button_back)
 
         self.data_storage = data_storage
 
         self.results_text_edit = QTextEdit(self)
         self.results_text_edit.setReadOnly(True)
-        layout.addWidget(self.results_text_edit)
-
-        self.setLayout(layout)
+        self.layout.addWidget(self.results_text_edit)  # Dodanie QTextEdit do układu
+        self.results_text_edit.hide()  # Ukrycie QTextEdit
 
         self.showStatsSignal.connect(self.show_stats)
 
+
     def show_stats(self):
-        try:
-            idc = irDataClient(username="f12020@o2.pl", password="Kxn157890-")
-            driver_info = idc.stats_member_recent_races(cust_id=819528)
+        if not self.results_text_edit.isVisible():
+            try:
+                idc = irDataClient(username="*", password="*")
+                driver_info = idc.stats_member_recent_races(cust_id=819528)
+                race_results = [IRacingRaceResult(race_data) for race_data in driver_info['races']]
 
-            race_results = [IRacingRaceResult(race_data) for race_data in driver_info['races']]
+                for result in race_results:
+                    self.results_text_edit.append(f"Series: {result.series_name}")
+                    self.results_text_edit.append(f"Car Model: {result.car}")
+                    self.results_text_edit.append(f"Track: {result.track_name}")
+                    self.results_text_edit.append(f"Start Position: {result.start_position}")
+                    self.results_text_edit.append(f"Finish Position: {result.finish_position}")
+                    self.results_text_edit.append(f"Incidents: {result.incidents_count}")
+                    self.results_text_edit.append(f"Points: {result.points}")
+                    self.results_text_edit.append(f"Strength of Field: {result.strength_of_field}")
+                    self.results_text_edit.append(f"Qualifying Time: {result.qualifying_time}")
+                    self.results_text_edit.append(f"Laps Led: {result.laps_led}")
+                    self.results_text_edit.append("-" * 30)
 
-            self.results_text_edit.clear()
-            for result in race_results:
-                self.results_text_edit.append(f"Series: {result.series_name}")
-                self.results_text_edit.append(f"Car Model: {result.car_model} ({result.car_class})")
-                self.results_text_edit.append(f"Start Position: {result.start_position}")
-                self.results_text_edit.append(f"Finish Position: {result.finish_position}")
-                self.results_text_edit.append(f"Track: {result.track_name}")
-                self.results_text_edit.append(f"Incidents: {result.incidents_count}")
-                self.results_text_edit.append(f"Points: {result.points}")
-                self.results_text_edit.append(f"Strength of Field: {result.strength_of_field}")
-                self.results_text_edit.append(f"Qualifying Time: {result.qualifying_time}")
-                self.results_text_edit.append(f"Laps Led: {result.laps_led}")
-                self.results_text_edit.append("-" * 30)
-
-        except Exception as e:
-            print(f"Błąd podczas pobierania informacji o kierowcy: {e}")
+            except Exception as e:
+                print(f"Błąd podczas pobierania informacji o kierowcy: {e}")
+        
+            self.results_text_edit.show()  # Pokaż QTextEdit z danymi
+            self.adjustSize()
 
     def show_add_results_options(self):
         pass
 
     def populate_results_table(self):
         pass
-
 
 class DriverInfoWindow(QDialog):
     def __init__(self, driver_info, parent=None):
