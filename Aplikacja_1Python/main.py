@@ -2,6 +2,7 @@ from PySide6.QtCore import Signal, QTimer, QObject
 from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QDialog, QTableWidget, \
     QTableWidgetItem, QInputDialog, QLabel, QTextEdit, QSizePolicy
 
+import pandas as pd
 import json
 from iracingdataapi.client import irDataClient
 
@@ -170,9 +171,6 @@ class ProjectCarsOptionsWindow(QDialog):
         button_add_results = QPushButton("Dodaj wyniki")
         button_add_results.clicked.connect(self.show_add_results_options)
         layout.addWidget(button_add_results)
-
-        button_leaderboard = QPushButton("Ranking światowy")
-        layout.addWidget(button_leaderboard)
 
         button_back = QPushButton("Powrót do wyboru gry")
         button_back.clicked.connect(self.accept)
@@ -352,6 +350,7 @@ class IRacingRaceResult:
 
 class IRacingOptionsWindow(QDialog):
     showStatsSignal = Signal()
+    showWorldRankingSignal = Signal()
 
     def __init__(self, data_storage, parent=None):
         super().__init__(parent)
@@ -368,6 +367,7 @@ class IRacingOptionsWindow(QDialog):
         self.layout.addWidget(self.button_add_results)
 
         self.button_ranking = QPushButton("Ranking światowy")
+        self.button_ranking.clicked.connect(self.show_world_ranking)
         self.layout.addWidget(self.button_ranking)
 
         self.button_back = QPushButton("Powrót do wyboru gry")
@@ -376,39 +376,69 @@ class IRacingOptionsWindow(QDialog):
 
         self.data_storage = data_storage
 
-        self.results_text_edit = QTextEdit(self)
-        self.results_text_edit.setReadOnly(True)
-        self.layout.addWidget(self.results_text_edit)
-        self.results_text_edit.hide()
+        
+        self.stats_text_edit = QTextEdit(self)
+        self.stats_text_edit.setReadOnly(True)
+        self.layout.addWidget(self.stats_text_edit)
+        self.stats_text_edit.hide()
+
+        self.world_ranking_text_edit = QTextEdit(self)
+        self.world_ranking_text_edit.setReadOnly(True)
+        self.layout.addWidget(self.world_ranking_text_edit)
+        self.world_ranking_text_edit.hide()
+
+        self.showWorldRankingSignal.connect(self.show_world_ranking_table)
 
         self.showStatsSignal.connect(self.show_stats)
 
+    def show_world_ranking(self):
+        self.showWorldRankingSignal.emit()
 
+    def show_world_ranking_table(self):
+        self.world_ranking_text_edit.clear()
+
+        try:
+
+            df = pd.read_csv(r'C:\\Users\\kbuga\\OneDrive\\Pulpit\\EiT 3 SEMESTR\\_repos\\projekt-programowanie-Buglix\\Aplikacja_1Python\\Road_driver_stats.csv')
+            top_15_drivers = df.head(30)
+            for index, row in top_15_drivers.iterrows():
+                driver = row['DRIVER']
+                irating = row['IRATING']
+                self.world_ranking_text_edit.append(f"IRating: {irating}")
+                self.world_ranking_text_edit.append(f"Driver Name: {driver}")
+                self.world_ranking_text_edit.append("-" * 30)
+        except Exception as e:
+            print(f"Błąd podczas wczytywania informacji o rankingu światowym z pliku CSV: {e}")
+    
+        self.world_ranking_text_edit.show()
+        self.stats_text_edit.hide()
+        self.adjustSize()
     def show_stats(self):
-        if not self.results_text_edit.isVisible():
+        if not self.stats_text_edit.isVisible():
             try:
                 idc = irDataClient(username="*", password="*")
                 driver_info = idc.stats_member_recent_races(cust_id=819528)
                 race_results = [IRacingRaceResult(race_data) for race_data in driver_info['races']]
 
                 for result in race_results:
-                    self.results_text_edit.append(f"Series: {result.series_name}")
-                    self.results_text_edit.append(f"Car Model: {result.car_name}")
-                    self.results_text_edit.append(f"Track: {result.track_name}")
-                    self.results_text_edit.append(f"Start Position: {result.start_position}")
-                    self.results_text_edit.append(f"Finish Position: {result.finish_position}")
-                    self.results_text_edit.append(f"Incidents: {result.incidents_count}")
-                    self.results_text_edit.append(f"Points: {result.points}")
-                    self.results_text_edit.append(f"Strength of Field: {result.strength_of_field}")
-                    self.results_text_edit.append(f"Old rating: {result.oldi_rating}")
-                    self.results_text_edit.append(f"New rating: {result.newi_rating}")
-                    self.results_text_edit.append(f"Laps Led: {result.laps_led}")
-                    self.results_text_edit.append("-" * 30)
+                    self.stats_text_edit.append(f"Series: {result.series_name}")
+                    self.stats_text_edit.append(f"Car Model: {result.car_name}")
+                    self.stats_text_edit.append(f"Track: {result.track_name}")
+                    self.stats_text_edit.append(f"Start Position: {result.start_position}")
+                    self.stats_text_edit.append(f"Finish Position: {result.finish_position}")
+                    self.stats_text_edit.append(f"Incidents: {result.incidents_count}")
+                    self.stats_text_edit.append(f"Points: {result.points}")
+                    self.stats_text_edit.append(f"Strength of Field: {result.strength_of_field}")
+                    self.stats_text_edit.append(f"Old rating: {result.oldi_rating}")
+                    self.stats_text_edit.append(f"New rating: {result.newi_rating}")
+                    self.stats_text_edit.append(f"Laps Led: {result.laps_led}")
+                    self.stats_text_edit.append("-" * 30)
 
             except Exception as e:
                 print(f"Błąd podczas pobierania informacji o kierowcy: {e}")
         
-            self.results_text_edit.show()
+            self.stats_text_edit.show()
+            self.world_ranking_text_edit.hide()
             self.adjustSize()
 
     def show_add_results_options(self):
@@ -417,6 +447,7 @@ class IRacingOptionsWindow(QDialog):
     def populate_results_table(self):
         pass
 
+    
 class DriverInfoWindow(QDialog):
     def __init__(self, driver_info, parent=None):
         super().__init__(parent)
