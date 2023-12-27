@@ -1,6 +1,6 @@
 from PySide6.QtCore import Signal, QTimer, QObject
 from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QDialog, QTableWidget, \
-    QTableWidgetItem, QInputDialog, QLabel, QTextEdit, QSizePolicy
+    QTableWidgetItem, QInputDialog, QLabel, QTextEdit, QHeaderView
 
 import pandas as pd
 import json
@@ -15,9 +15,6 @@ class RaceResult:
         self.incidents_count = kwargs.get("incidents_count", 0)
         self.position_in_race = kwargs.get("position_in_race", 0)
         self.track_name = kwargs.get("track_name", "")
-        self.irating = kwargs.get("irating", 0)
-        self.start_position = kwargs.get("start_position", 0)
-        self.finish_position = kwargs.get("finish_position", 0)
 
 
 class DataStorage:
@@ -28,6 +25,20 @@ class DataStorage:
         self.track_name = None
         self.results_history = []  
         self.max_results_history = 15
+    
+    def load_from_file(self):
+        try:
+            with open("data.json", "r") as file:
+                data = json.load(file) 
+            self.car_model = data.get("car_model")
+            self.incidents_count = data.get("incidents_count")
+            self.position_in_race = data.get("position_in_race")
+            self.track_name = data.get("track_name")
+            self.results_history = [
+                RaceResult(**result) for result in data.get("results_history", [])
+            ]
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            print(f"Błąd podczas wczytywania danych z pliku: {e}")
 
     def save_to_file(self):
         data = {
@@ -40,27 +51,12 @@ class DataStorage:
                     "car_model": result.car_model,
                     "incidents_count": result.incidents_count,
                     "position_in_race": result.position_in_race,
-                    "track_name": result.track_name,
-                    "irating": result.irating
+                    "track_name": result.track_name
                 } for result in self.results_history
             ]
         }
         with open("data.json", "w") as file:
             json.dump(data, file, indent=4)
-
-    def load_from_file(self):
-        try:
-            with open("data.json", "r") as file:
-                data = json.load(file)
-                self.car_model = data.get("car_model")
-                self.incidents_count = data.get("incidents_count")
-                self.position_in_race = data.get("position_in_race")
-                self.track_name = data.get("track_name")
-                self.results_history = [
-                    RaceResult(**result) for result in data.get("results_history", [])
-                ]
-        except (FileNotFoundError, json.JSONDecodeError) as e:
-            print(f"Błąd podczas wczytywania danych z pliku: {e}")
 
     def add_result_to_history(self, result):
         self.results_history.insert(0, result)
@@ -86,8 +82,8 @@ class MainWindow(QWidget):
         button_iracing.clicked.connect(lambda: self.show_game_options("iRacing"))
         layout.addWidget(button_iracing)
 
-        self.data_storage = DataStorage()  
-
+        self.data_storage = DataStorage()
+        self.data_storage.load_from_file()
         self.setLayout(layout)
 
     def show_game_options(self, game_name):
@@ -118,6 +114,7 @@ class StatsWindow(QDialog):
         self.setWindowTitle("Twoje statystyki")
 
         layout = QVBoxLayout()
+        self.setFixedSize(555, 500)
 
         self.results_table = QTableWidget(self)
         self.results_table.setColumnCount(4)
@@ -137,6 +134,10 @@ class StatsWindow(QDialog):
             self.results_table.setItem(row, 1, QTableWidgetItem(str(result.incidents_count)))
             self.results_table.setItem(row, 2, QTableWidgetItem(str(result.position_in_race) if result.position_in_race is not None else ""))
             self.results_table.setItem(row, 3, QTableWidgetItem(result.track_name if result.track_name is not None else ""))
+        
+        self.results_table.resizeColumnsToContents()
+        header = self.results_table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeToContents)
 
 class IRacingStatsWindow(StatsWindow):
     def __init__(self, results_history, parent=None):
@@ -182,11 +183,8 @@ class ProjectCarsOptionsWindow(QDialog):
         self.setLayout(layout)
 
     def show_stats(self):
-        if isinstance(self, IRacingOptionsWindow):
-            self.show_iracing_stats()
-        else:
-            stats_window = StatsWindow(self.data_storage.results_history, self)
-            stats_window.exec()
+        stats_window = StatsWindow(self.data_storage.results_history, self)
+        stats_window.exec()
 
     def show_iracing_stats(self):
         iracing_stats_window = IRacingStatsWindow(self.data_storage.results_history, self)
@@ -201,6 +199,7 @@ class ProjectCarsOptionsWindow(QDialog):
         self.results_table = QTableWidget(self)
         self.results_table.setColumnCount(4)
         self.results_table.setHorizontalHeaderLabels(["Model auta", "Ilość incydentów", "Pozycja w wyścigu", "Tor"])
+        self.results_table.resizeColumnsToContents()
 
     def populate_results_table(self):
         latest_results = self.data_storage.results_history
@@ -215,6 +214,7 @@ class ProjectCarsOptionsWindow(QDialog):
 
         layout = self.layout()
         layout.addWidget(self.results_table)
+        self.setFixedSize(593, 675)
 
 class AddResultsOptionsWindow(QDialog):
     showStatsSignal = Signal()
@@ -265,7 +265,7 @@ class AddResultsOptionsWindow(QDialog):
             self.data_storage.incidents_count = incidents_count
 
     def get_position_in_race(self):
-        position_in_race, ok_pressed = QInputDialog.getInt(self, "Pozycja w wyścigu", "Wprowadź pozycję w wyniku:", 1, 1, 100)
+        position_in_race, ok_pressed = QInputDialog.getInt(self, "Pozycja w wyścigu", "Wprowadź pozycję w wyścigu:", 1, 1, 100)
         if ok_pressed:
             self.data_storage.position_in_race = position_in_race
 
@@ -281,12 +281,13 @@ class AddResultsOptionsWindow(QDialog):
             position_in_race=self.data_storage.position_in_race,
             track_name=self.data_storage.track_name
         )
+        
         self.data_storage.add_result_to_history(result)
-
+        self.data_storage.save_to_file()
+        
         self.showStatsSignal.emit()
-
+        
         self.accept()
-
 class IRacingRaceResult:
 
     car_id_to_car_name = {
@@ -400,8 +401,8 @@ class IRacingOptionsWindow(QDialog):
         try:
 
             df = pd.read_csv(r'C:\\Users\\kbuga\\OneDrive\\Pulpit\\EiT 3 SEMESTR\\_repos\\projekt-programowanie-Buglix\\Aplikacja_1Python\\Road_driver_stats.csv')
-            top_15_drivers = df.head(30)
-            for index, row in top_15_drivers.iterrows():
+            top_30_drivers = df.head(30)
+            for index, row in top_30_drivers.iterrows():
                 driver = row['DRIVER']
                 irating = row['IRATING']
                 self.world_ranking_text_edit.append(f"IRating: {irating}")
@@ -412,6 +413,7 @@ class IRacingOptionsWindow(QDialog):
     
         self.world_ranking_text_edit.show()
         self.stats_text_edit.hide()
+        self.world_ranking_text_edit.verticalScrollBar().setValue(0)
         self.adjustSize()
     def show_stats(self):
         if not self.stats_text_edit.isVisible():
@@ -439,6 +441,7 @@ class IRacingOptionsWindow(QDialog):
         
             self.stats_text_edit.show()
             self.world_ranking_text_edit.hide()
+            self.stats_text_edit.verticalScrollBar().setValue(0)
             self.adjustSize()
 
     def show_add_results_options(self):

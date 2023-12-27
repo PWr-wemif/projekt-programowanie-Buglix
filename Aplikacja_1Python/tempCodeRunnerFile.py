@@ -1,3 +1,2 @@
-# Pokazujemy QTextEdit i przycisk "Ranking światowy"
-            self.results_text_edit.show()
-            self.leaderboard_button.show()
+stats_window = StatsWindow(self.data_storage.results_history, self)
+            stats_window.exec()
