@@ -1,11 +1,12 @@
-from PySide6.QtCore import Signal, QTimer, QObject
+from PySide6.QtCore import Signal, QTimer, QObject, Qt
 from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QDialog, QTableWidget, \
     QTableWidgetItem, QInputDialog, QLabel, QTextEdit, QHeaderView
 
+import pytz
 import pandas as pd
 import json
 from iracingdataapi.client import irDataClient
-
+from datetime import datetime
 class SignalHandler(QObject):
     showStatsSignal = Signal()
 
@@ -352,6 +353,7 @@ class IRacingRaceResult:
 class IRacingOptionsWindow(QDialog):
     showStatsSignal = Signal()
     showWorldRankingSignal = Signal()
+    showUpcomingRacesSignal = Signal()
 
     def __init__(self, data_storage, parent=None):
         super().__init__(parent)
@@ -363,9 +365,9 @@ class IRacingOptionsWindow(QDialog):
         self.button_stats.clicked.connect(self.show_stats)
         self.layout.addWidget(self.button_stats)
 
-        self.button_add_results = QPushButton("Nadchodzące wyścigi")
-        self.button_add_results.clicked.connect(self.show_add_results_options)
-        self.layout.addWidget(self.button_add_results)
+        self.button_upcoming_races = QPushButton("Nadchodzące wyścigi")
+        self.button_upcoming_races.clicked.connect(self.show_upcoming_races)
+        self.layout.addWidget(self.button_upcoming_races)
 
         self.button_ranking = QPushButton("Ranking światowy")
         self.button_ranking.clicked.connect(self.show_world_ranking)
@@ -377,6 +379,8 @@ class IRacingOptionsWindow(QDialog):
 
         self.data_storage = data_storage
 
+        self.upcoming_races_label = QLabel("", alignment=Qt.AlignCenter)
+        self.layout.addWidget(self.upcoming_races_label)
         
         self.stats_text_edit = QTextEdit(self)
         self.stats_text_edit.setReadOnly(True)
@@ -392,8 +396,23 @@ class IRacingOptionsWindow(QDialog):
 
         self.showStatsSignal.connect(self.show_stats)
 
+        self.upcoming_races_text_edit = QTextEdit()
+        self.upcoming_races_text_edit.setReadOnly(True)
+        self.layout.addWidget(self.upcoming_races_text_edit)
+        self.upcoming_races_text_edit.hide()
+
+        self.showUpcomingRacesSignal.connect(self.show_upcoming_races)
+        
+
     def show_world_ranking(self):
         self.showWorldRankingSignal.emit()
+
+    def show_upcoming_races(self):
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.upcoming_races_label.setText(f"Aktualny czas: {current_time}")
+
+        self.stats_text_edit.hide()
+        self.world_ranking_text_edit.hide()
 
     def show_world_ranking_table(self):
         self.world_ranking_text_edit.clear()
@@ -413,6 +432,7 @@ class IRacingOptionsWindow(QDialog):
     
         self.world_ranking_text_edit.show()
         self.stats_text_edit.hide()
+        self.upcoming_races_label.hide()
         self.world_ranking_text_edit.verticalScrollBar().setValue(0)
         self.adjustSize()
     def show_stats(self):
@@ -441,6 +461,7 @@ class IRacingOptionsWindow(QDialog):
         
             self.stats_text_edit.show()
             self.world_ranking_text_edit.hide()
+            self.upcoming_races_label.hide()
             self.stats_text_edit.verticalScrollBar().setValue(0)
             self.adjustSize()
 
@@ -450,7 +471,44 @@ class IRacingOptionsWindow(QDialog):
     def populate_results_table(self):
         pass
 
+    def show_upcoming_races(self):
+        if not self.upcoming_races_text_edit.isVisible():
+            try:
+                idc = irDataClient(username="*", password="*")
+                upcoming_races_info = idc.season_race_guide()
+
+                for race_info in upcoming_races_info['sessions']:
+
+                    start_time_str = race_info['start_time']
+                    start_time_utc = datetime.strptime(start_time_str, "%Y-%m-%dT%H:%M:%S%z")
+                    start_time_local = start_time_utc.astimezone(pytz.timezone('Europe/Warsaw'))
+                    start_time_str_local = start_time_local.strftime("%Y-%m-%d %H:%M:%S")
+                    end_time_str = race_info['end_time']
+                    end_time_utc = datetime.strptime(end_time_str, "%Y-%m-%dT%H:%M:%S%z")
+                    end_time_local = end_time_utc.astimezone(pytz.timezone('Europe/Warsaw'))
+                    end_time_str_local = end_time_local.strftime("%Y-%m-%d %H:%M:%S")
+
+                    self.upcoming_races_text_edit.append(f"Race week number: {race_info['race_week_num']}")
+                    self.upcoming_races_text_edit.append(f"Series ID: {race_info['series_id']}")
+                    self.upcoming_races_text_edit.append(f"Start Time: {start_time_str_local}")
+                    self.upcoming_races_text_edit.append(f"End Time: {end_time_str_local}")
+                    self.upcoming_races_text_edit.append(f"Season ID: {race_info['season_id']}")
+                    self.upcoming_races_text_edit.append(f"Entry Count: {race_info['entry_count']}")
+                    self.upcoming_races_text_edit.append("-" * 30)
+
+            except Exception as e:
+                print(f"Błąd podczas pobierania informacji o nadchodzących wyścigach: {e}")
     
+            self.upcoming_races_text_edit.show()
+            self.stats_text_edit.hide()
+            self.world_ranking_text_edit.hide()
+            self.upcoming_races_text_edit.verticalScrollBar().setValue(0)
+            self.adjustSize()
+    def convert_to_local_time(self, time_str):
+        time_str = time_str[:-1] + "+0000"
+        time_utc = datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S%z")
+        time_local = time_utc.astimezone(pytz.timezone('Europe/Warsaw'))
+        return time_local.strftime("%Y-%m-%d %H:%M:%S")
 class DriverInfoWindow(QDialog):
     def __init__(self, driver_info, parent=None):
         super().__init__(parent)
