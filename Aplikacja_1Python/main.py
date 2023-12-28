@@ -355,6 +355,108 @@ class IRacingOptionsWindow(QDialog):
     showWorldRankingSignal = Signal()
     showUpcomingRacesSignal = Signal()
 
+    series_id_to_name = {
+        32: "Advanced Legends Cup",
+        33: "iRacing Late Model Tour",
+        34: "Skip Barber Race Series",
+        45: "SK Modified Series",
+        47: "NASCAR iRacing Class C Series",
+        53: "The Silver Crown",
+        58: "NASCAR iRacing Class A Series",
+        62: "NASCAR iRacing Class B Series",
+        63: "Gen3 Spec Racer Ford",
+        65: "iRacing's Classic Lotus Grand Prix Series",
+        74: "Radical Esports Cup",
+        102: "NASCAR Whelen Tour Modifieds",
+        103: "NASCAR iRacing Class B Series (Fixed Setup)",
+        112: "iRacing Production Car Challenge",
+        116: "NASCAR Cup Series Next Gen",
+        131: "Sprint Car Series",
+        133: "US Open Wheel Dallara IR-18",
+        139: "Fanatec Global Mazda MX-5 Cup",
+        164: "NASCAR iRacing Class C Series",
+        165: "US Open Wheel C - Dallara IR18 Fixed Series",
+        167: "iRacing ARCA Menards Series",
+        182: "Fanatec Rookie Street Stock Series",
+        190: "Street Stock Class C Series",
+        191: "NASCAR iRacing Class A Series (fixed setup)",
+        201: "Grand Prix Legends Series",
+        210: "Global Fanatec Challenge Fixed Series",
+        223: "Modified - NASCAR XFINITY",
+        228: "VRS GT Sprint Series",
+        231: "Advanced Mazda MX-5 Cup Series",
+        237: "VRS GT Endurance Series",
+        259: "NASCAR Craftsman Truck Series",
+        260: "Formula Grand Prix Series",
+        285: "IMSA Vintage Series",
+        291: "iRacing Limited Late Model Series",
+        292: "Fanatec 305 Sprint Series",
+        299: "iRacing Porsche Cup by Coach Dave Delta",
+        305: "DIRTcar 360 Sprint Car Series",
+        306: "DIRTcar Pro Late Model Series",
+        353: "Ferrari 488 GT3 EVO Fixed Series",
+        359: "iRacing Formula 3.5 Championship",
+        413: "NASCAR Legends Series",
+        414: "Indy Pro 2000 Championship",
+        419: "IMSA Endurance Series",
+        430: "Touring Car Racing Series",
+        431: "F3 Series",
+        432: "Proto-GT Thrustmaster Challenge",
+        443: "Cooper Tires USF2000 Championship",
+        444: "Fixed Setup GT3 Challenge",
+        447: "IMSA iRacing Series",
+        455: "Formula Vees Series",
+        456: "The iRacing F3 Championship",
+        457: "LMP2 Prototype Challenge Fixed",
+        458: "World of Outlaws Sprint Car Series - Fixed",
+        459: "Rookie IRX Volkswagen Beetle Lite Fixed",
+        460: "IRX Volkswagen Beetle Lite",
+        461: "Rookie Pro 2 Lite Off-road Racing Series",
+        462: "Rookie Pro 2 Lite Off-road Racing Series",
+        463: "Pro 4 Off-road Racing Series - Fixed",
+        464: "Pro 2 Off-road Racing Series - Fixed",
+        466: "Engine Ice 358 Modified Series",
+        471: "Dallara iR-01 - Fixed",
+        476: "The iRacing Porsche Cup by Coach Dave Delta",
+        481: "Winter iRacing Nascar Series - Fixed",
+        482: "Winter iRacing Nascar Series",
+        483: "Rookie Legends Vrs Cup",
+        484: "Formula Grand Prix Sprint",
+        490: "Pro 2 Off-road Racing Series",
+        491: "GT4 Falken Tyre Challenge-Fixed",
+        492: "IMSA Michelin Pilot Challenge",
+        493: "Stock Car Brasil",
+        497: "FIA Formula 4",
+        498: "FIA Formula 4",
+        500: "Dirt Super Late Model Tour - Fixed",
+        501: "Dirt 410 Sprint Car Tour",
+        502: "Falken Tyre Sports Car Challenge",
+        503: "Touring Car Racing Series",
+        505: "Mission R Challenge Fixed",
+        514: "Toyota GR86",
+        515: "Dirt Car 360 Sprint Fixed",
+        516: "Dirt Midget Cup Fixed",
+        517: "Dirt Car Pro Late Model Series Fixed",
+        518: "Super Dirt Car Big Block Modifieds Fixed",
+        519: "Renault Clio R.S. Series",
+        520: "Formula 1600 Series",
+        521: "Formula 1600 Trophy",
+        524: "NASCAR's Gen 4 Cup Series",
+        525: "LMP3 Fixed Series",
+        526: "Ring Meister Series - Fixed",
+        530: "Ford Mustang FR500S Series",
+        535: "Global GTE Sprint Series",
+        536: "Super Formula Series",
+        537: "Super Formula Series",
+        538: "Draft Master",
+        539: "International Motor Sports Association",
+        540: "FIA F4 Esports Regional Tour - America",
+        541: "FIA F4 Esports Regional Tour - East",
+        542: "FIA F4 Esports Regional Tour - South",
+        543: "FIA F4 Esports Regional Tour - North",
+        548: "iRacing Weekly Challenge",
+        
+        }
     def __init__(self, data_storage, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Opcje iRacing")
@@ -479,6 +581,8 @@ class IRacingOptionsWindow(QDialog):
 
                 for race_info in upcoming_races_info['sessions']:
 
+                    series_name1 = self.series_id_to_name.get(race_info['series_id'], "Unknown")
+
                     start_time_str = race_info['start_time']
                     start_time_utc = datetime.strptime(start_time_str, "%Y-%m-%dT%H:%M:%S%z")
                     start_time_local = start_time_utc.astimezone(pytz.timezone('Europe/Warsaw'))
@@ -492,7 +596,7 @@ class IRacingOptionsWindow(QDialog):
                     self.upcoming_races_text_edit.append(f"Series ID: {race_info['series_id']}")
                     self.upcoming_races_text_edit.append(f"Start Time: {start_time_str_local}")
                     self.upcoming_races_text_edit.append(f"End Time: {end_time_str_local}")
-                    self.upcoming_races_text_edit.append(f"Season ID: {race_info['season_id']}")
+                    self.upcoming_races_text_edit.append(f"Series name: {series_name1}")
                     self.upcoming_races_text_edit.append(f"Entry Count: {race_info['entry_count']}")
                     self.upcoming_races_text_edit.append("-" * 30)
 
