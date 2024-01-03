@@ -1,1 +1,0 @@
-lf.world_ranking
