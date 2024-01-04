@@ -1,7 +1,7 @@
 from PySide6.QtCore import Signal, QTimer, QObject, Qt, QDateTime
 from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QDialog, QTableWidget, \
     QTableWidgetItem, QInputDialog, QLabel, QTextEdit, QHeaderView
-
+from PySide6.QtGui import QFont
 import pytz
 import pandas as pd
 import json
@@ -71,8 +71,8 @@ class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("Wybierz grę wyścigową")
-
+        self.setWindowTitle("Wybierz grę")
+        self.setFixedSize(250, 100)
         layout = QVBoxLayout()
 
         button_project_cars = QPushButton("Project Cars 2")
@@ -86,6 +86,8 @@ class MainWindow(QWidget):
         self.data_storage = DataStorage()
         self.data_storage.load_from_file()
         self.setLayout(layout)
+        font = QFont("Calibri", 15)
+        self.setFont(font)
 
     def show_game_options(self, game_name):
         if game_name == "Project Cars 2":
@@ -97,11 +99,9 @@ class MainWindow(QWidget):
             iracing_options_window = IRacingOptionsWindow(self.data_storage, self)
             iracing_options_window.showStatsSignal.connect(iracing_options_window.populate_results_table)
             iracing_options_window.showStatsSignal.connect(iracing_options_window.show_stats)
-
-            self.showStatsSignal.connect(lambda: iracing_options_window.show())
-            
-            iracing_options_window.hide()
             iracing_options_window.exec()
+            
+        self.close
 
     def delayed_show_stats(self):
         QTimer.singleShot(0, self.show_stats)
@@ -161,7 +161,8 @@ class ProjectCarsOptionsWindow(QDialog):
 
     def __init__(self, data_storage, parent=None):
         super().__init__(parent)
-
+        font = QFont("Calibri", 15)
+        self.setFont(font)
         self.setWindowTitle("Opcje Project Cars 2")
 
         layout = QVBoxLayout()
@@ -224,7 +225,8 @@ class AddResultsOptionsWindow(QDialog):
         super().__init__(parent)
 
         self.setWindowTitle("Opcje Dodaj wyniki")
-
+        font = QFont("Calibri", 15)
+        self.setFont(font)
         layout = QVBoxLayout()
 
         button_car_model = QPushButton("Model auta")
@@ -480,7 +482,6 @@ class IRacingOptionsWindow(QDialog):
     def __init__(self, data_storage, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Opcje iRacing")
-
         self.layout = QVBoxLayout(self)
 
         self.button_stats = QPushButton("Twoje statystyki")
@@ -549,7 +550,7 @@ class IRacingOptionsWindow(QDialog):
 
         try:
 
-            df = pd.read_csv(r'C:\\Users\\kbuga\\OneDrive\\Pulpit\\EiT 3 SEMESTR\\_repos\\projekt-programowanie-Buglix\\Aplikacja_1Python\\Road_driver_stats.csv')
+            df = pd.read_csv(r'C:\\Users\\kbuga\\OneDrive\\Pulpit\\EiT 3 SEMESTR\\_repos\\projekt-programowanie-Buglix\\Simracing Data App\\Road_driver_stats.csv')
             top_30_drivers = df.head(30)
             for index, row in top_30_drivers.iterrows():
                 driver = row['DRIVER']
@@ -647,14 +648,9 @@ class IRacingOptionsWindow(QDialog):
         current_time_str = current_time_gmt_plus_one.toString("yyyy-MM-dd HH:mm:ss")
 
         elapsed_seconds = self.last_api_update_time.secsTo(current_time_utc)
-        if elapsed_seconds >= 3:
+        if elapsed_seconds >= 0:
             self.upcoming_races_label.setText(f"Aktualny czas: GMT+1 {current_time_str}")
             self.upcoming_races_label.setAlignment(Qt.AlignCenter)
-    
-    def on_upcoming_races_button_clicked(self):
-        self.stop_timer()
-        self.get_upcoming_races_data()
-        self.start_timer()
 
     def start_timer(self):
         self.timer.start()
