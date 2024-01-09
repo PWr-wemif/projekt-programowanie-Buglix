@@ -1,10 +1,10 @@
 from PySide6.QtCore import Signal, QTimer, QObject, Qt, QDateTime
 from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QDialog, QTableWidget, \
-    QTableWidgetItem, QInputDialog, QLabel, QTextEdit, QHeaderView
+    QTableWidgetItem, QInputDialog, QLabel, QTextEdit, QHeaderView, QLineEdit
 from PySide6.QtGui import QFont
 import pytz
 import pandas as pd
-import json
+import sqlite3
 from iracingdataapi.client import irDataClient
 from datetime import datetime
 class SignalHandler(QObject):
@@ -17,52 +17,52 @@ class RaceResult:
         self.position_in_race = kwargs.get("position_in_race", 0)
         self.track_name = kwargs.get("track_name", "")
 
-
 class DataStorage:
     def __init__(self):
         self.car_model = None
         self.incidents_count = None
         self.position_in_race = None
         self.track_name = None
-        self.results_history = []  
+        self.results_history = []
         self.max_results_history = 15
-    
-    def load_from_file(self):
-        try:
-            with open("data.json", "r") as file:
-                data = json.load(file) 
-            self.car_model = data.get("car_model")
-            self.incidents_count = data.get("incidents_count")
-            self.position_in_race = data.get("position_in_race")
-            self.track_name = data.get("track_name")
-            self.results_history = [
-                RaceResult(**result) for result in data.get("results_history", [])
-            ]
-        except (FileNotFoundError, json.JSONDecodeError) as e:
-            print(f"Błąd podczas wczytywania danych z pliku: {e}")
+        self.conn = sqlite3.connect("data.db")
+        self.create_table()
 
-    def save_to_file(self):
-        data = {
-            "car_model": self.car_model,
-            "incidents_count": self.incidents_count,
-            "position_in_race": self.position_in_race,
-            "track_name": self.track_name,
-            "results_history": [
-                {
-                    "car_model": result.car_model,
-                    "incidents_count": result.incidents_count,
-                    "position_in_race": result.position_in_race,
-                    "track_name": result.track_name
-                } for result in self.results_history
-            ]
-        }
-        with open("data.json", "w") as file:
-            json.dump(data, file, indent=4)
+    def create_table(self):
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS results (
+                car_model TEXT,
+                incidents_count INTEGER,
+                position_in_race INTEGER,
+                track_name TEXT
+            )
+        ''')
+        self.conn.commit()
+
+    def load_from_database(self):
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT * FROM results')
+        rows = cursor.fetchall()
+        self.results_history = [
+            RaceResult(car_model=row[0], incidents_count=row[1], position_in_race=row[2], track_name=row[3]) for row in rows
+        ]
+
+    def save_to_database(self):
+        cursor = self.conn.cursor()
+        cursor.execute('DELETE FROM results')
+        for result in self.results_history:
+            cursor.execute('''
+                INSERT INTO results (car_model, incidents_count, position_in_race, track_name)
+                VALUES (?, ?, ?, ?)
+            ''', (result.car_model, result.incidents_count, result.position_in_race, result.track_name))
+        self.conn.commit()
 
     def add_result_to_history(self, result):
         self.results_history.insert(0, result)
         self.results_history = self.results_history[:self.max_results_history]
-        self.save_to_file()
+        self.save_to_database()
+
 
 
 class MainWindow(QWidget):
@@ -84,7 +84,7 @@ class MainWindow(QWidget):
         layout.addWidget(button_iracing)
 
         self.data_storage = DataStorage()
-        self.data_storage.load_from_file()
+        self.data_storage.load_from_database()
         self.setLayout(layout)
         font = QFont("Calibri", 15)
         self.setFont(font)
@@ -100,7 +100,7 @@ class MainWindow(QWidget):
             iracing_options_window.showStatsSignal.connect(iracing_options_window.populate_results_table)
             iracing_options_window.showStatsSignal.connect(iracing_options_window.show_stats)
             iracing_options_window.exec()
-            
+
         self.close
 
     def delayed_show_stats(self):
@@ -108,6 +108,7 @@ class MainWindow(QWidget):
 
     def show_stats(self):
         self.showStatsSignal.emit()
+
 class StatsWindow(QDialog):
     def __init__(self, results_history, parent=None):
         super().__init__(parent)
@@ -123,7 +124,7 @@ class StatsWindow(QDialog):
 
         layout.addWidget(self.results_table)
         self.data_storage = DataStorage()
-        self.data_storage.load_from_file()
+        self.data_storage.load_from_database()
         self.populate_results_table(results_history)
 
         self.setLayout(layout)
@@ -135,7 +136,7 @@ class StatsWindow(QDialog):
             self.results_table.setItem(row, 1, QTableWidgetItem(str(result.incidents_count)))
             self.results_table.setItem(row, 2, QTableWidgetItem(str(result.position_in_race) if result.position_in_race is not None else ""))
             self.results_table.setItem(row, 3, QTableWidgetItem(result.track_name if result.track_name is not None else ""))
-        
+
         self.results_table.resizeColumnsToContents()
         header = self.results_table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeToContents)
@@ -148,7 +149,7 @@ class IRacingStatsWindow(StatsWindow):
         for result in reversed(results_history):
             rowPosition = self.results_table.rowCount()
             self.results_table.insertRow(rowPosition)
-            self.results_table.setItem(rowPosition, 0, QTableWidgetItem(IRacingRaceResult.car_id_to_car_name.get(result.car_id, "Unknown")))
+            self.results_table.setItem(rowPosition, 0, QTableWidgetItem(IRacingRaceResult.car_id_to_car_name.get(result.car_id, "Nieznane")))
             self.results_table.setItem(rowPosition, 1, QTableWidgetItem(str(result.incidents_count)))
             self.results_table.setItem(rowPosition, 2, QTableWidgetItem(str(result.start_position)))
             self.results_table.setItem(rowPosition, 3, QTableWidgetItem(str(result.finish_position)))
@@ -229,67 +230,51 @@ class AddResultsOptionsWindow(QDialog):
         self.setFont(font)
         layout = QVBoxLayout()
 
-        button_car_model = QPushButton("Model auta")
-        button_car_model.clicked.connect(self.get_car_model)
-        layout.addWidget(button_car_model)
+        back_button = QPushButton("Powrót do opcji Project Cars 2")
+        back_button.clicked.connect(self.accept)
+        layout.addWidget(back_button)
 
-        button_incidents = QPushButton("Ilość incydentów")
-        button_incidents.clicked.connect(self.get_incidents_count)
-        layout.addWidget(button_incidents)
+        self.track_name_lineedit = QLineEdit(self)
+        self.track_name_lineedit.setPlaceholderText("Wprowadź nazwę toru")
+        layout.addWidget(self.track_name_lineedit)
 
-        button_position = QPushButton("Pozycja w wyścigu")
-        button_position.clicked.connect(self.get_position_in_race)
-        layout.addWidget(button_position)
+        self.incidents_count_lineedit = QLineEdit(self)
+        self.incidents_count_lineedit.setPlaceholderText("Wprowadź ilość incydentów")
+        layout.addWidget(self.incidents_count_lineedit)
 
-        button_track_name = QPushButton("Tor")
-        button_track_name.clicked.connect(self.get_track_name)
-        layout.addWidget(button_track_name)
+        self.position_in_race_lineedit = QLineEdit(self)
+        self.position_in_race_lineedit.setPlaceholderText("Wprowadź pozycję końcową")
+        layout.addWidget(self.position_in_race_lineedit)
+
+        self.car_model_lineedit = QLineEdit(self)
+        self.car_model_lineedit.setPlaceholderText("Wprowadź nazwę auta")
+        layout.addWidget(self.car_model_lineedit)
 
         save_button = QPushButton("Zapisz")
         save_button.clicked.connect(self.save_and_close)
         layout.addWidget(save_button)
 
-        back_button = QPushButton("Powrót do opcji Project Cars 2")
-        back_button.clicked.connect(self.accept)
-        layout.addWidget(back_button)
-
         self.data_storage = data_storage
-        self.data_storage.load_from_file()
+        self.data_storage.load_from_database()
         self.setLayout(layout)
 
-    def get_car_model(self):
-        car_model, ok_pressed = QInputDialog.getText(self, "Model auta", "Wprowadź model auta:")
-        if ok_pressed and car_model:
-            self.data_storage.car_model = car_model
-
-    def get_incidents_count(self):
-        incidents_count, ok_pressed = QInputDialog.getInt(self, "Ilość incydentów", "Wprowadź ilość incydentów:", 0, 0, 100)
-        if ok_pressed:
-            self.data_storage.incidents_count = incidents_count
-
-    def get_position_in_race(self):
-        position_in_race, ok_pressed = QInputDialog.getInt(self, "Pozycja w wyścigu", "Wprowadź pozycję w wyścigu:", 1, 1, 100)
-        if ok_pressed:
-            self.data_storage.position_in_race = position_in_race
-
-    def get_track_name(self):
-        track_name, ok_pressed = QInputDialog.getText(self, "Tor", "Wprowadź nazwę toru:")
-        if ok_pressed and track_name:
-            self.data_storage.track_name = track_name
-
     def save_and_close(self):
-        result = RaceResult(
-            car_model=self.data_storage.car_model,
-            incidents_count=self.data_storage.incidents_count,
-            position_in_race=self.data_storage.position_in_race,
-            track_name=self.data_storage.track_name
-        )
-        
-        self.data_storage.add_result_to_history(result)
-        self.data_storage.save_to_file()
-        
-        self.showStatsSignal.emit()
-        
+        track_name = self.track_name_lineedit.text()
+        car_model = self.car_model_lineedit.text()
+        incidents_count = int(self.incidents_count_lineedit.text()) if self.incidents_count_lineedit.text() else 0
+        position_in_race = int(self.position_in_race_lineedit.text()) if self.position_in_race_lineedit.text() else 0
+
+        if track_name and incidents_count and position_in_race and car_model:
+    
+            result = RaceResult(
+                car_model=car_model,
+                incidents_count=incidents_count,
+                position_in_race=position_in_race,
+                track_name=track_name
+            )
+            self.data_storage.add_result_to_history(result)
+            self.data_storage.save_to_database()
+            self.showStatsSignal.emit()
         self.accept()
 class IRacingRaceResult:
 
@@ -334,6 +319,7 @@ class IRacingRaceResult:
         157:"Mercedes-AMG GT4",
         159:"BMW M Hybrid V8",
         160:"Toyota GR86",
+        169:"Porsche 911 GT3 R (992)",
         173:"Ferrari 296 GT3",
         176:"Audi R8 LMS EVO II GT3",
     }
@@ -555,8 +541,12 @@ class IRacingOptionsWindow(QDialog):
             for index, row in top_30_drivers.iterrows():
                 driver = row['DRIVER']
                 irating = row['IRATING']
+                avg_incidents = row['AVG_INC']
+                avg_finish = row['AVG_FINISH_POS']
                 self.world_ranking_text_edit.append(f"IRating: {irating}")
                 self.world_ranking_text_edit.append(f"Driver Name: {driver}")
+                self.world_ranking_text_edit.append(f"Average incidents: {avg_incidents}")
+                self.world_ranking_text_edit.append(f"Average finish position: {avg_finish}")
                 self.world_ranking_text_edit.append("-" * 30)
         except Exception as e:
             print(f"Błąd podczas wczytywania informacji o rankingu światowym z pliku CSV: {e}")
@@ -610,7 +600,7 @@ class IRacingOptionsWindow(QDialog):
 
                 for race_info in upcoming_races_info['sessions']:
 
-                    series_name1 = self.series_id_to_name.get(race_info['series_id'], "Unknown")
+                    series_name1 = self.series_id_to_name.get(race_info['series_id'], "Nieznane")
 
                     start_time_str = race_info['start_time']
                     start_time_utc = datetime.strptime(start_time_str, "%Y-%m-%dT%H:%M:%S%z")
@@ -621,7 +611,7 @@ class IRacingOptionsWindow(QDialog):
                     end_time_local = end_time_utc.astimezone(pytz.timezone('Europe/Warsaw'))
                     end_time_str_local = end_time_local.strftime("%Y-%m-%d %H:%M:%S")
 
-                    self.upcoming_races_text_edit.append(f"Race week number: {race_info['race_week_num']}")
+                    self.upcoming_races_text_edit.append(f"Race week number: {race_info['race_week_num'] + 1}")
                     self.upcoming_races_text_edit.append(f"Start Time: {start_time_str_local}")
                     self.upcoming_races_text_edit.append(f"End Time: {end_time_str_local}")
                     self.upcoming_races_text_edit.append(f"Series name: {series_name1}")
