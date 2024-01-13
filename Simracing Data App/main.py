@@ -557,9 +557,11 @@ class IRacingOptionsWindow(QDialog):
         self.world_ranking_text_edit.verticalScrollBar().setValue(0)
         self.adjustSize()
     def show_stats(self):
-        if not self.stats_text_edit.isVisible():
+        login_dialog = LoginDialog(self)
+        if login_dialog.exec() == QDialog.Accepted:
+            username, password = login_dialog.get_credentials()
             try:
-                idc = irDataClient(username="*", password="*")
+                idc = irDataClient(username=username, password=password)
                 driver_info = idc.stats_member_recent_races(cust_id=819528)
                 race_results = [IRacingRaceResult(race_data) for race_data in driver_info['races']]
 
@@ -593,9 +595,11 @@ class IRacingOptionsWindow(QDialog):
         pass
 
     def show_upcoming_races(self):
-        if not self.upcoming_races_text_edit.isVisible():
+        login_dialog = LoginDialog(self)
+        if login_dialog.exec() == QDialog.Accepted:
+            username, password = login_dialog.get_credentials()
             try:
-                idc = irDataClient(username="*", password="*")
+                idc = irDataClient(username=username, password=password)
                 upcoming_races_info = idc.season_race_guide()
 
                 for race_info in upcoming_races_info['sessions']:
@@ -647,7 +651,34 @@ class IRacingOptionsWindow(QDialog):
 
     def stop_timer(self):
         self.timer.stop()
+class LoginDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
 
+        self.setWindowTitle("Logowanie do iRacing API")
+
+        layout = QVBoxLayout()
+
+        self.username_lineedit = QLineEdit(self)
+        self.username_lineedit.setPlaceholderText("Nazwa użytkownika")
+        layout.addWidget(self.username_lineedit)
+
+        self.password_lineedit = QLineEdit(self)
+        self.password_lineedit.setPlaceholderText("Hasło")
+        self.password_lineedit.setEchoMode(QLineEdit.Password)
+        layout.addWidget(self.password_lineedit)
+
+        login_button = QPushButton("Zaloguj")
+        login_button.clicked.connect(self.accept)
+        layout.addWidget(login_button)
+
+        self.setLayout(layout)
+
+    def get_credentials(self):
+        username = self.username_lineedit.text()
+        password = self.password_lineedit.text()
+        return username, password
+    
 class DriverInfoWindow(QDialog):
     def __init__(self, driver_info, parent=None):
         super().__init__(parent)
@@ -669,7 +700,6 @@ if __name__ == "__main__":
     app = QApplication([])
 
     main_window = MainWindow()
-    main_window.showStatsSignal.connect(main_window.delayed_show_stats)
     main_window.show()
 
     app.exec()
