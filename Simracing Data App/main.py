@@ -5,6 +5,7 @@ from PySide6.QtGui import QFont
 import pytz
 import pandas as pd
 import sqlite3
+import keyring
 from iracingdataapi.client import irDataClient
 from datetime import datetime
 class SignalHandler(QObject):
@@ -63,8 +64,6 @@ class DataStorage:
         self.results_history = self.results_history[:self.max_results_history]
         self.save_to_database()
 
-
-
 class MainWindow(QWidget):
     showStatsSignal = Signal()
 
@@ -97,7 +96,6 @@ class MainWindow(QWidget):
             project_cars_options_window.exec()
         elif game_name == "iRacing":
             iracing_options_window = IRacingOptionsWindow(self.data_storage, self)
-            iracing_options_window.showStatsSignal.connect(iracing_options_window.populate_results_table)
             iracing_options_window.showStatsSignal.connect(iracing_options_window.show_stats)
             iracing_options_window.exec()
 
@@ -141,22 +139,6 @@ class StatsWindow(QDialog):
         header = self.results_table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeToContents)
 
-class IRacingStatsWindow(StatsWindow):
-    def __init__(self, results_history, parent=None):
-        super().__init__(results_history, parent)
-
-    def populate_results_table(self, results_history):
-        for result in reversed(results_history):
-            rowPosition = self.results_table.rowCount()
-            self.results_table.insertRow(rowPosition)
-            self.results_table.setItem(rowPosition, 0, QTableWidgetItem(IRacingRaceResult.car_id_to_car_name.get(result.car_id, "Nieznane")))
-            self.results_table.setItem(rowPosition, 1, QTableWidgetItem(str(result.incidents_count)))
-            self.results_table.setItem(rowPosition, 2, QTableWidgetItem(str(result.start_position)))
-            self.results_table.setItem(rowPosition, 3, QTableWidgetItem(str(result.finish_position)))
-            self.results_table.setItem(rowPosition, 4, QTableWidgetItem(result.track_name))
-
-
-
 class ProjectCarsOptionsWindow(QDialog):
     showStatsSignal = Signal()
 
@@ -188,10 +170,6 @@ class ProjectCarsOptionsWindow(QDialog):
     def show_stats(self):
         stats_window = StatsWindow(self.data_storage.results_history, self)
         stats_window.exec()
-
-    def show_iracing_stats(self):
-        iracing_stats_window = IRacingStatsWindow(self.data_storage.results_history, self)
-        iracing_stats_window.exec()
 
     def show_add_results_options(self):
         add_results_options_window = AddResultsOptionsWindow(self.data_storage, self)
@@ -261,7 +239,7 @@ class AddResultsOptionsWindow(QDialog):
         incidents_count = self.incidents_count_spinbox.value()
         position_in_race = self.position_in_race_spinbox.value()
 
-        if track_name and incidents_count and position_in_race and car_model:
+        if track_name and car_model:
             result = RaceResult(
                 car_model=car_model,
                 incidents_count=incidents_count,
@@ -487,7 +465,10 @@ class IRacingOptionsWindow(QDialog):
         self.layout.addWidget(self.button_back)
 
         self.data_storage = data_storage
-
+        self.username = ""
+        self.password = ""
+        self.load_credentials()
+        
         self.upcoming_races_label = QLabel("", alignment=Qt.AlignCenter)
         self.layout.addWidget(self.upcoming_races_label)
         
@@ -557,11 +538,11 @@ class IRacingOptionsWindow(QDialog):
         self.world_ranking_text_edit.verticalScrollBar().setValue(0)
         self.adjustSize()
     def show_stats(self):
-        login_dialog = LoginDialog(self)
-        if login_dialog.exec() == QDialog.Accepted:
-            username, password = login_dialog.get_credentials()
+            if not self.username or not self.password:
+                self.prompt_for_credentials()
+                return
             try:
-                idc = irDataClient(username=username, password=password)
+                idc = irDataClient(username=self.username, password=self.password)
                 driver_info = idc.stats_member_recent_races(cust_id=819528)
                 race_results = [IRacingRaceResult(race_data) for race_data in driver_info['races']]
 
@@ -588,18 +569,12 @@ class IRacingOptionsWindow(QDialog):
             self.stats_text_edit.verticalScrollBar().setValue(0)
             self.adjustSize()
 
-    def show_add_results_options(self):
-        pass
-
-    def populate_results_table(self):
-        pass
-
     def show_upcoming_races(self):
-        login_dialog = LoginDialog(self)
-        if login_dialog.exec() == QDialog.Accepted:
-            username, password = login_dialog.get_credentials()
+            if not self.username or not self.password:
+                self.prompt_for_credentials()
+                return
             try:
-                idc = irDataClient(username=username, password=password)
+                idc = irDataClient(username=self.username, password=self.password)
                 upcoming_races_info = idc.season_race_guide()
 
                 for race_info in upcoming_races_info['sessions']:
@@ -643,7 +618,7 @@ class IRacingOptionsWindow(QDialog):
 
         elapsed_seconds = self.last_api_update_time.secsTo(current_time_utc)
         if elapsed_seconds >= 0:
-            self.upcoming_races_label.setText(f"Aktualny czas: GMT+1 {current_time_str}")
+            self.upcoming_races_label.setText(f"Aktualny czas: {current_time_str}")
             self.upcoming_races_label.setAlignment(Qt.AlignCenter)
 
     def start_timer(self):
@@ -651,6 +626,33 @@ class IRacingOptionsWindow(QDialog):
 
     def stop_timer(self):
         self.timer.stop()
+
+    def load_credentials(self):
+        self.username = keyring.get_password("SimracingDataApp", "iRacingUsername")
+        self.password = keyring.get_password("SimracingDataApp", "iRacingPassword")
+    
+    def save_credentials(self):
+        keyring.set_password("SimracingDataApp", "iRacingUsername", self.username)
+        keyring.set_password("SimracingDataApp", "iRacingPassword", self.password)
+    
+    def prompt_for_credentials(self):
+        login_dialog = LoginDialog(self)
+        if login_dialog.exec() == QDialog.Accepted:
+            self.username, self.password = login_dialog.get_credentials()
+            self.save_credentials()
+            self.show_stats()
+class MyApp:
+    def clear_credentials(self):
+        try:
+            keyring.delete_password('SimracingDataApp', 'iRacingUsername')
+            keyring.delete_password('SimracingDataApp', 'iRacingPassword')
+            print("Dane logowania wyczyszczone.")
+        except keyring.errors.PasswordDeleteError as e:
+            print("Dane logowania nie zostały podane.")
+
+    def closeEvent(self, event):
+        self.clear_credentials()
+        event.accept()
 class LoginDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -678,28 +680,14 @@ class LoginDialog(QDialog):
         username = self.username_lineedit.text()
         password = self.password_lineedit.text()
         return username, password
-    
-class DriverInfoWindow(QDialog):
-    def __init__(self, driver_info, parent=None):
-        super().__init__(parent)
-
-        self.setWindowTitle("Informacje o kierowcy")
-
-        layout = QVBoxLayout()
-
-        self.driver_info_label = QLabel(f"Informacje o kierowcy: {driver_info}")
-        layout.addWidget(self.driver_info_label)
-
-        close_button = QPushButton("Zamknij")
-        close_button.clicked.connect(self.accept)
-        layout.addWidget(close_button)
-
-        self.setLayout(layout)
-
+        
 if __name__ == "__main__":
     app = QApplication([])
 
     main_window = MainWindow()
     main_window.show()
+
+    my_app = MyApp()
+    app.aboutToQuit.connect(my_app.clear_credentials)
 
     app.exec()
