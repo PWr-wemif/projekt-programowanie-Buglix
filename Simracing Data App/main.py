@@ -1,6 +1,6 @@
 from PySide6.QtCore import Signal, QTimer, QObject, Qt, QDateTime
 from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QDialog, QTableWidget, \
-    QTableWidgetItem, QInputDialog, QLabel, QTextEdit, QHeaderView, QLineEdit
+    QTableWidgetItem, QLabel, QTextEdit, QHeaderView, QLineEdit, QMessageBox, QSpinBox
 from PySide6.QtGui import QFont
 import pytz
 import pandas as pd
@@ -230,29 +230,26 @@ class AddResultsOptionsWindow(QDialog):
         self.setFont(font)
         layout = QVBoxLayout()
 
-        back_button = QPushButton("Powrót do opcji Project Cars 2")
-        back_button.clicked.connect(self.accept)
-        layout.addWidget(back_button)
-
         self.track_name_lineedit = QLineEdit(self)
         self.track_name_lineedit.setPlaceholderText("Wprowadź nazwę toru")
         layout.addWidget(self.track_name_lineedit)
-
-        self.incidents_count_lineedit = QLineEdit(self)
-        self.incidents_count_lineedit.setPlaceholderText("Wprowadź ilość incydentów")
-        layout.addWidget(self.incidents_count_lineedit)
-
-        self.position_in_race_lineedit = QLineEdit(self)
-        self.position_in_race_lineedit.setPlaceholderText("Wprowadź pozycję końcową")
-        layout.addWidget(self.position_in_race_lineedit)
-
+        self.incidents_count_spinbox = QSpinBox(self)
+        self.incidents_count_spinbox.setPrefix("Ilość incydentów: ")
+        self.incidents_count_spinbox.setMinimum(0)
+        layout.addWidget(self.incidents_count_spinbox)
+        self.position_in_race_spinbox = QSpinBox(self)
+        self.position_in_race_spinbox.setPrefix("Pozycja w wyścigu: ")
+        self.position_in_race_spinbox.setMinimum(1)
+        layout.addWidget(self.position_in_race_spinbox)
         self.car_model_lineedit = QLineEdit(self)
         self.car_model_lineedit.setPlaceholderText("Wprowadź nazwę auta")
         layout.addWidget(self.car_model_lineedit)
-
         save_button = QPushButton("Zapisz")
         save_button.clicked.connect(self.save_and_close)
         layout.addWidget(save_button)
+        back_button = QPushButton("Powrót do opcji Project Cars 2")
+        back_button.clicked.connect(self.accept)
+        layout.addWidget(back_button)
 
         self.data_storage = data_storage
         self.data_storage.load_from_database()
@@ -261,11 +258,10 @@ class AddResultsOptionsWindow(QDialog):
     def save_and_close(self):
         track_name = self.track_name_lineedit.text()
         car_model = self.car_model_lineedit.text()
-        incidents_count = int(self.incidents_count_lineedit.text()) if self.incidents_count_lineedit.text() else 0
-        position_in_race = int(self.position_in_race_lineedit.text()) if self.position_in_race_lineedit.text() else 0
+        incidents_count = self.incidents_count_spinbox.value()
+        position_in_race = self.position_in_race_spinbox.value()
 
         if track_name and incidents_count and position_in_race and car_model:
-    
             result = RaceResult(
                 car_model=car_model,
                 incidents_count=incidents_count,
@@ -275,7 +271,11 @@ class AddResultsOptionsWindow(QDialog):
             self.data_storage.add_result_to_history(result)
             self.data_storage.save_to_database()
             self.showStatsSignal.emit()
-        self.accept()
+            self.accept()
+        else:
+            QMessageBox.warning(
+                self, "Brak wymaganych informacji", "Wprowadź wszystkie wymagane informacje."
+            )
 class IRacingRaceResult:
 
     car_id_to_car_name = {
