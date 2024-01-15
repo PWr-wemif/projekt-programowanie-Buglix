@@ -101,9 +101,6 @@ class MainWindow(QWidget):
 
         self.close
 
-    def delayed_show_stats(self):
-        QTimer.singleShot(0, self.show_stats)
-
     def show_stats(self):
         self.showStatsSignal.emit()
 
@@ -641,7 +638,7 @@ class IRacingOptionsWindow(QDialog):
             self.username, self.password = login_dialog.get_credentials()
             self.save_credentials()
             self.show_stats()
-class MyApp:
+class DeleteMyData:
     def clear_credentials(self):
         try:
             keyring.delete_password('SimracingDataApp', 'iRacingUsername')
@@ -687,7 +684,7 @@ if __name__ == "__main__":
     main_window = MainWindow()
     main_window.show()
 
-    my_app = MyApp()
+    my_app = DeleteMyData()
     app.aboutToQuit.connect(my_app.clear_credentials)
 
     app.exec()
